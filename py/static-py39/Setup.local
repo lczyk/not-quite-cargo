@@ -1,0 +1,6 @@
+*static*
+_posixsubprocess _posixsubprocess.c  # POSIX subprocess module helper
+*static*
+select selectmodule.c	# select(2); not on ancient System V
+*static*
+math mathmodule.c _math.c -DPy_BUILD_CORE_MODULE # -lm # math library functions, e.g. sin()
