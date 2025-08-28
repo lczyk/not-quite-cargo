@@ -16,13 +16,13 @@ paths with placeholders like `{{PROJECT_ROOT}}`, `{{CARGO_HOME}}`, and `{{RUSTC}
 to make the build plan more portable.
 
 ```bash
-python3 cargo.py patch build_plan.json
+python3 not-quite-cargo.py patch build_plan.json
 ```
 
 Then run this script with:
 
 ```bash
-python3 cargo.py run build_plan.json
+python3 not-quite-cargo.py run build_plan.json
 ```
 """
 

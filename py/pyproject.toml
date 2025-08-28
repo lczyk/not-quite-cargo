@@ -1,5 +1,5 @@
 [project]
-name = "cargo-py"
+name = "not-quite-cargo"
 description = "Add your description here"
 version = "0.2.1"
 authors = [{ name = "Marcin Konowalczyk", email = "marcin.konowalczyk@canonical.com" }]
@@ -8,7 +8,7 @@ requires-python = ">=3.9"
 dependencies = []
 
 [project.urls]
-home = "https://github.com/lczyk/cargo-py"
+home = "https://github.com/lczyk/not-quite-cargo"
 
 # coverage setup
 [tool.coverage.run]

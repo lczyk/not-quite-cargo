@@ -19,7 +19,7 @@ function main() {
 
     local it=""
     local entrypoint='/work/python'
-    local args=("-S" "cargo.py" "run" "build_plan.json")
+    local args=("-S" "not-quite-cargo.py" "run" "build_plan.json")
     
     if [[ $SHELL -eq 1 ]]; then
         it="-it"

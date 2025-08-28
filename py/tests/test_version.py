@@ -3,7 +3,7 @@ from pathlib import Path
 from conftest import __project_root__
 from packaging.version import Version
 
-MAIN_FILE = __project_root__ / "src" / "cargo.py"
+MAIN_FILE = __project_root__ / "src" / "not-quite-cargo.py"
 PYPORJECT_FILE = __project_root__ / "pyproject.toml"
 
 
