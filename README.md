@@ -17,6 +17,8 @@ This is not necessarilly a new idea, there have been
 [other](https://github.com/rust-lang/cargo/issues/5579#issuecomment-438426743)
 attampts at doing that, but this particular one is mine.
 
+Tested with cargo `v1.84.1`.
+
 ## Succesfully compiled
 
 - [sudo-rs](https://github.com/trifectatechfoundation/sudo-rs)
