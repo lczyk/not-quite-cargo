@@ -21,9 +21,29 @@ build: ./bin/not-quite-cargo  ## Build the binary (upx-compressed if available)
 	fi
 	@echo "Built $@ ($$(du -h $@ | cut -f1))"
 
-.PHONY: test
-test: generate-version  ## Run the test suite
+.PHONY: test-unit
+test-unit: generate-version  ## Run the Go unit tests
 	go test -race ./...
+
+.PHONY: test-examples
+test-examples:  ## Run each examples/*/makefile end-to-end (PASS/FAIL only)
+	@for d in examples/*/; do \
+		if [ -f "$$d/makefile" ] || [ -f "$$d/Makefile" ]; then \
+			name=$$(basename "$$d"); \
+			echo "[test-examples] running $$name ..."; \
+			if $(MAKE) --no-print-directory -C "$$d" _quiet; then \
+				echo "[test-examples] PASS $$name"; \
+			else \
+				rc=$$?; \
+				echo "[test-examples] FAIL $$name -- log: $$d/work/quiet.log"; \
+				cat "$$d/work/quiet.log" 2>/dev/null || true; \
+				exit $$rc; \
+			fi; \
+		fi; \
+	done
+
+.PHONY: test
+test: test-unit test-examples  ## Run unit tests + example demos
 
 .PHONY: lint
 lint:  ## go vet + gofmt check (no writes)
