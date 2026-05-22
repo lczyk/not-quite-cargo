@@ -7,8 +7,10 @@ import (
 	"os"
 
 	flags "github.com/jessevdk/go-flags"
+	ver "github.com/lczyk/version/go"
 
 	"not-quite-cargo/cargo"
+	vinfo "not-quite-cargo/internal/version"
 )
 
 type Options struct {
@@ -59,7 +61,8 @@ func main() {
 
 	opts := Options{
 		Version: func() {
-			fmt.Printf("not-quite-cargo %s\n", cargo.Version)
+			fmt.Printf("not-quite-cargo %s\n",
+				ver.FormatVersion(vinfo.Version, vinfo.CommitSHA, vinfo.BuildDate, vinfo.BuildInfo))
 			os.Exit(0)
 		},
 	}

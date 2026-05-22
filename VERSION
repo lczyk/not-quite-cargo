@@ -1,0 +1,5 @@
+# VERSION file for not-quite-cargo
+# Source of truth for the version number (semver 2.0.0).
+# The py/ side keeps its own version in pyproject.toml and cargo.py
+# which should match this.
+0.3.0

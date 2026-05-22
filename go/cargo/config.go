@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-const Version = "0.3.0"
-
 // Config holds the resolved environment paths used to patch and run a build plan.
 type Config struct {
 	ProjectRoot string

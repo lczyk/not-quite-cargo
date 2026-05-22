@@ -7,4 +7,7 @@ require (
 	github.com/lczyk/assert v0.7.0
 )
 
-require golang.org/x/sys v0.21.0 // indirect
+require (
+	github.com/lczyk/version/go v0.5.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
+)
