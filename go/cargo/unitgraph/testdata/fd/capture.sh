@@ -46,17 +46,16 @@ function main() {
         --platform=linux/"${arch}" \
         --volume "${SCRIPT_DIR}":/out \
         -e FD_REF="${FD_REF}" \
-        -e CARGO_HOME=/cargo-home \
+        -e CARGO_HOME=/tmp/cargo-home \
         -e RUSTC_BOOTSTRAP=1 \
         --user "$(id -u):$(id -g)" \
-        --workdir / \
+        --workdir /tmp \
         "${RUST_IMAGE}" \
         bash -c '
             set -e
-            cd /tmp
             git clone --depth 1 --branch "${FD_REF}" \
                 https://github.com/sharkdp/fd.git /tmp/fd
-            mkdir -p /cargo-home
+            mkdir -p /tmp/cargo-home
             cd /tmp/fd
             cargo fetch -q
             cargo build -j1 -Z unstable-options --unit-graph \

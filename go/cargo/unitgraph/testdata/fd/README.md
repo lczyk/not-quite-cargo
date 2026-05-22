@@ -23,7 +23,7 @@ both fixtures plus `rustc --print cfg` in one pass.
   arch matching the capture machine). feeds lower's `--cfg` flag.
 
 paths in the JSON files are container-internal (`/tmp/fd`,
-`/cargo-home`, the image's rustc path) -- stable across captures by
+`/tmp/cargo-home`, the image's rustc path) -- stable across captures by
 construction, no host-side anonymisation needed. the lowering test
 configures matching `ProjectRoot` / `CargoHome` values so the paths
 line up.

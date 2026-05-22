@@ -11,11 +11,11 @@ import (
 
 // Container-side paths the capture.sh script bakes into the JSON
 // fixtures. capture.sh runs inside rust:1.84 with fd cloned at /tmp/fd
-// and CARGO_HOME=/cargo-home, so every absolute path in ug.json and
+// and CARGO_HOME=/tmp/cargo-home, so every absolute path in ug.json and
 // build-plan.json references one of these prefixes.
 const (
 	fdFixtureProjectRoot = "/tmp/fd"
-	fdFixtureCargoHome   = "/cargo-home"
+	fdFixtureCargoHome   = "/tmp/cargo-home"
 )
 
 // TestFixture_FdLowering loads the captured fd unit-graph fixture,
