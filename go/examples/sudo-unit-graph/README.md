@@ -5,26 +5,27 @@ mirrors [`../sudo`](../sudo) but uses cargo's `--unit-graph` instead of
 working build plan for a real native-lib-using crate.
 
 cargo 1.93 removed `--build-plan`. `--unit-graph` is the closest
-surviving export. this demo pins `rust:1.84` (where both still exist)
-but pretends `--build-plan` is gone so the result is what cargo 1.93+
-users would have to do.
+surviving export. this demo pins `ubuntu/rust:1.93-26.04_edge` -- a
+cargo where `--build-plan` is genuinely gone -- so the planner has
+no choice but to use `--unit-graph`.
 
 ## what it does
 
-three steps against `nqc-sudo-ug-demo:1.84` (= `rust:1.84` +
-`libpam0g-dev` -- needed b/c sudo-rs links against `libpam`):
+three container stages, two images:
 
-1. **planner** -- clones sudo-rs at the pinned tag, runs
+1. **planner** (`ubuntu/rust:1.93-26.04_edge` -- has cargo + rustc) --
+   clones sudo-rs at the pinned tag, runs
    `cargo build -Z unstable-options --unit-graph`, then
    `nqc build --os linux --arch <arch> --libc gnu unit-graph.json > build-plan.json`,
    then `nqc patch build-plan.json`.
-2. **runner** -- cargo deleted from `PATH`, `--network=none`. consumes
-   the patched plan via `nqc run`.
-3. **prove** -- spin up `ubuntu:26.04` (no rust toolchain, network
-   off). copy the built `sudo` binary in, set the setuid bit, drop a
-   minimal `/etc/sudoers` (root NOPASSWD) and a permissive
-   `/etc/pam.d/sudo`, run `sudo whoami`. should print `root` --
-   proves the binary actually executes + elevates in a stock distro.
+2. **runner** (`nqc-sudo-ug-demo:1.93-26.04` = base + `libpam0g-dev`,
+   cargo deleted at image-build time, `--network=none`) -- consumes the
+   patched plan via `nqc run`.
+3. **prove** (`ubuntu:26.04`, no rust toolchain, network off) -- copy
+   the built `sudo` binary in, set the setuid bit, drop a minimal
+   `/etc/sudoers` (root NOPASSWD) and a permissive `/etc/pam.d/sudo`,
+   run `sudo whoami`. should print `root` -- proves the binary actually
+   executes + elevates in a stock distro.
 
 if cargo's absence in the runner stage caused the build to fail, the
 demo would exit non-zero. instead the runner produces the sudo-rs
@@ -39,8 +40,13 @@ binaries -- entirely from rustc + the derived plan, no cargo.
 ## run
 
 ```
-./demo.sh
+make all        # full pipeline (image -> binary -> clone -> plan -> run -> prove)
+make help       # list every target
 ```
+
+individual stages: `make image`, `make binary`, `make clone`, `make plan`,
+`make run`, `make prove`. each depends on its predecessors, so
+`make prove` from a clean tree runs the lot.
 
 artefacts land under `work/`:
 
@@ -54,22 +60,25 @@ artefacts land under `work/`:
 
 ## flags
 
-- `SUDO_RS_REF=<tag-or-sha>` -- override the pinned sudo-rs revision
-  (default: `v0.2.3`).
-- `DOCKER=podman` -- use podman instead.
-- `DEMO_SHELL=1` -- drop into a shell inside the runner container
-  instead of running the build.
+- `SUDO_RS_REF=<tag-or-sha> make all` -- override the pinned sudo-rs
+  revision (default: `v0.2.3`).
+- `DOCKER=podman make all` -- use podman instead.
+- `make shell` -- drop into bash in the runner image for poking around.
 
 ## comparison with `../sudo`
 
 both demos:
 
-- pin `rust:1.84` so cargo's removed unstable flags still work
 - derive a plan on a "planner" container, then replay on a "runner"
   container without cargo
 - end in the same binary output
 
-key difference: this one's planner step uses `--unit-graph` + `nqc
-build`, the other's uses `--build-plan` directly. when this demo
-breaks but `../sudo` still works, the regression is in `nqc build`,
-not in the runner / patcher.
+key differences:
+
+- `../sudo` pins `ubuntu/rust:1.75-24.04_stable` and uses
+  `cargo --build-plan` directly.
+- this one pins `ubuntu/rust:1.93-26.04_edge` (where `--build-plan` is
+  gone) and uses `cargo --unit-graph` + `nqc build` instead.
+
+when this demo breaks but `../sudo` still works, the regression is in
+`nqc build`, not in the runner / patcher.

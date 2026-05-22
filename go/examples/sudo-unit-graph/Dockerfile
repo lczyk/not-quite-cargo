@@ -1,11 +1,36 @@
-# Demo base image: rust:1.84 + the C libs sudo-rs needs at link time.
-#
-# Same image shape as ../sudo/Dockerfile. Shipped separately so this
-# example stays self-contained -- the unit-graph flow doesn't depend on
-# the --build-plan demo's image being built.
-FROM rust:1.84
+# ubuntu/rust:1.93-26.04_edge + libpam, with cargo deleted
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        libpam0g-dev \
-    && rm -rf /var/lib/apt/lists/*
+FROM ubuntu/rust:1.93-26.04_edge
+
+# download .debs for libpam + transitive runtime deps, then cherry-pick
+# only the .so.
+#
+# we can skip headers headers since sudo-rs uses raw FFI bindings
+RUN set -eux; \
+    triplet="$(uname -m)-linux-gnu"; \
+    apt-get update; \
+    mkdir -p /tmp/debs; cd /tmp/debs; \
+    apt-get download libpam0g libpam0g-dev libaudit1 libcap-ng0; \
+    for deb in libpam0g_*.deb; do \
+        dpkg-deb --fsys-tarfile "$deb" | tar -xf - -C / \
+            "./usr/lib/${triplet}/libpam.so.0" \
+            "./usr/lib/${triplet}/libpam.so.0.85.1"; \
+    done; \
+    for deb in libpam0g-dev_*.deb; do \
+        dpkg-deb --fsys-tarfile "$deb" | tar -xf - -C / \
+            "./usr/lib/${triplet}/libpam.so"; \
+    done; \
+    for deb in libaudit1_*.deb; do \
+        dpkg-deb --fsys-tarfile "$deb" | tar -xf - -C / \
+            "./usr/lib/${triplet}/libaudit.so.1" \
+            "./usr/lib/${triplet}/libaudit.so.1.0.0"; \
+    done; \
+    for deb in libcap-ng0_*.deb; do \
+        dpkg-deb --fsys-tarfile "$deb" | tar -xf - -C / \
+            "./usr/lib/${triplet}/libcap-ng.so.0" \
+            "./usr/lib/${triplet}/libcap-ng.so.0.0.0"; \
+    done; \
+    cd /; rm -rf /tmp/debs /var/lib/apt/lists/*
+
+# remove cargo
+RUN rm -f /usr/local/cargo/bin/cargo /usr/lib/rust-1.93/bin/cargo
