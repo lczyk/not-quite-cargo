@@ -68,8 +68,13 @@ func OutputPathsFor(in PathInputs) OutputPaths {
 		case "staticlib":
 			op.Extras = append(op.Extras, filepath.Join(base, "lib"+stem+".a"))
 		case "custom-build":
+			// rustc names the output by `--crate-name` + `--extra-filename`,
+			// so the build-script binary lands at
+			// `<deps>/<crate_name>-<hash>` (no `lib` prefix, no extension
+			// on unix). The crate name itself is the unit's target.name
+			// canonicalised (typically "build_script_build").
 			if op.Primary == "" {
-				op.Primary = filepath.Join(base, "build-script-build-"+in.Hash+binExt(in.Platform))
+				op.Primary = filepath.Join(base, stem+binExt(in.Platform))
 			}
 		}
 	}

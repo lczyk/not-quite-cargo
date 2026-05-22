@@ -142,12 +142,13 @@ func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
 // unitDerived caches the per-unit values the main pass needs about
 // every other unit (for extern resolution).
 type unitDerived struct {
-	pkgID    PkgID
-	pkg      PkgMetadata
-	hash     string
-	outputs  OutputPaths
-	platform string // resolved (HostTriple if Unit.IsHost)
-	depsDir  string // target/<profile>/[<triple>/]deps
+	pkgID                PkgID
+	pkg                  PkgMetadata
+	hash                 string
+	outputs              OutputPaths
+	platform             string // resolved (HostTriple if Unit.IsHost)
+	depsDir              string // target/<profile>/[<triple>/]deps
+	isCustomBuildCompile bool   // build.rs compile step (vs run-custom-build / regular compile)
 }
 
 func preDerive(u *Unit, opt LowerOptions) (unitDerived, string, error) {
@@ -196,12 +197,13 @@ func preDerive(u *Unit, opt LowerOptions) (unitDerived, string, error) {
 	depsDir := filepath.Dir(out.DepInfo)
 
 	return unitDerived{
-		pkgID:    id,
-		pkg:      pkg,
-		hash:     hash,
-		outputs:  out,
-		platform: platform,
-		depsDir:  depsDir,
+		pkgID:                id,
+		pkg:                  pkg,
+		hash:                 hash,
+		outputs:              out,
+		platform:             platform,
+		depsDir:              depsDir,
+		isCustomBuildCompile: u.IsCustomBuild() && u.Mode == "build",
 	}, warning, nil
 }
 
@@ -352,14 +354,11 @@ func buildScriptEnv(u *Unit, opt LowerOptions, outDir string) map[string]string 
 }
 
 func depIsCompileBuildScript(d *unitDerived) bool {
-	// Heuristic: a unit whose primary artefact name starts with
-	// "build-script-build-" is the compiled build.rs binary. Match
-	// against the path basename to keep this resilient to layout shifts.
-	if d.outputs.Primary == "" {
-		return false
-	}
-	base := filepath.Base(d.outputs.Primary)
-	return len(base) > len("build-script-build-") && base[:len("build-script-build-")] == "build-script-build-"
+	// Marker set during preDerive when the unit's target_kind contains
+	// "custom-build" and mode == "build". More robust than matching the
+	// output path basename, which changed when we canonicalised the
+	// build-script crate name to underscores.
+	return d.isCustomBuildCompile
 }
 
 func resolveExterns(u *Unit, derived []unitDerived) []ExternRef {

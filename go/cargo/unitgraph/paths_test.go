@@ -80,14 +80,16 @@ func TestOutputPathsFor_Cdylib(t *testing.T) {
 }
 
 func TestOutputPathsFor_CustomBuild(t *testing.T) {
+	// The caller passes the canonicalised crate name (underscores, no
+	// hyphens) because that's what rustc embeds in the output filename.
 	got := OutputPathsFor(PathInputs{
 		ProjectRoot: "/proj",
 		ProfileDir:  "debug",
-		CrateName:   "build-script-build",
+		CrateName:   "build_script_build",
 		Hash:        "feedfacecafebabe",
 		TargetKinds: []string{"custom-build"},
 	})
-	assert.Equal(t, got.Primary, "/proj/target/debug/deps/build-script-build-feedfacecafebabe")
+	assert.Equal(t, got.Primary, "/proj/target/debug/deps/build_script_build-feedfacecafebabe")
 }
 
 func TestOutputPathsFor_StaticlibAddsExtra(t *testing.T) {
