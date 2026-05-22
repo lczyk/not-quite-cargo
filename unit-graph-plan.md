@@ -120,7 +120,7 @@ walks). means:
 
 - runner code unchanged
 - patch step unchanged
-- all new logic lives behind a single boundary: `Lower(ug, cfg, meta, nqcCfg) -> cargo.BuildPlan`
+- all new logic lives behind a single boundary: `Build(ug, opts) -> cargo.BuildOutput`
 - intermediate `build-plan.json` is human-inspectable, diffable against
   a cargo-generated `--build-plan` when debugging
 
@@ -227,7 +227,7 @@ seven small commits:
    `args.go` + `manifest.go` + tests. now we have all the per-unit
    derivers.
 
-4. `feat: cargo/unitgraph Lower orchestrator`
+4. `feat: cargo/unitgraph Build orchestrator`
    `build.go` (`Build()` function) wires the above into one entry point. unit tests using
    hand-built small unit-graphs.
 

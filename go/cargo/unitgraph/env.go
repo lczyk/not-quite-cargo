@@ -7,7 +7,7 @@ import (
 )
 
 // PkgMetadata is the slice of a Cargo.toml that drives CARGO_PKG_* env
-// vars. Lower now populates only Name + Version (from pkg_id); the rest
+// vars. Build now populates only Name + Version (from pkg_id); the rest
 // stay empty.
 type PkgMetadata struct {
 	Name        string

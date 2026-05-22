@@ -1,6 +1,6 @@
-// Package unitgraph lowers a cargo unit-graph (`cargo build -Z
-// unstable-options --unit-graph`) into the build-plan shape that the
-// existing cargo.Run path already consumes.
+// Package unitgraph builds a build-plan-shaped document from a cargo
+// unit-graph (`cargo build -Z unstable-options --unit-graph`), suitable
+// for the existing cargo.Run path to consume.
 //
 // The package is experimental: cargo's --build-plan was removed in
 // 1.93.0 and unit-graph is the closest surviving plan-export. unit-graph

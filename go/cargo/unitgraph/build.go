@@ -84,16 +84,16 @@ type Invocation struct {
 // execution order on the runner side.
 func Build(ug *UnitGraph, opt BuildOptions) (*BuildOutput, error) {
 	if ug == nil {
-		return nil, fmt.Errorf("lower: nil unit-graph")
+		return nil, fmt.Errorf("build: nil unit-graph")
 	}
 	if err := opt.Target.Validate(); err != nil {
-		return nil, fmt.Errorf("lower: %w", err)
+		return nil, fmt.Errorf("build: %w", err)
 	}
 	if opt.HostTriple == "" {
 		opt.HostTriple = opt.Target.Triple()
 	}
 	if opt.RustcPath == "" {
-		return nil, fmt.Errorf("lower: RustcPath is required")
+		return nil, fmt.Errorf("build: RustcPath is required")
 	}
 
 	// Project root, cargo home, and registry index dir are auto-derived
