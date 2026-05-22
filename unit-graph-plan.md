@@ -8,7 +8,7 @@ without re-litigating each branch.
 shipped on the `unit-graph` branch. all seven planned commits + nine
 follow-up validation-driven fixes have landed.
 
-end-to-end validated on real crates (all locally, lower + run, binary
+end-to-end validated on real crates (all locally, build + run, binary
 runs and behaves):
 
 - hello world (1 unit, no deps)
@@ -27,7 +27,7 @@ cargo 1.93+ removed `--build-plan`; refresh requires docker + the
 existing `capture.sh` against `rust:1.84`.
 
 sudo-rs (the plan's stated MVP target) compiles on linux only; on macOS
-both cargo + our lower path fail identically on missing
+both cargo + our build path fail identically on missing
 linux-specific libc symbols. demo's docker flow remains the route
 there.
 
@@ -82,7 +82,7 @@ exactly two subprocess kinds allowed on the planner:
 1. `cargo build -Z unstable-options --unit-graph > ug.json` (once per
    workspace).
 2. `rustc --print cfg > host-cfg.txt` (once per distinct platform in the
-   unit-graph). run manually by the user; lower does not shell out.
+   unit-graph). run manually by the user; build does not shell out.
 
 no compilation, no other cargo invocations.
 
@@ -92,7 +92,7 @@ no compilation, no other cargo invocations.
 # planner
 cargo build -Z unstable-options --unit-graph > ug.json
 rustc --print cfg > host-cfg.txt
-nqc lower --cfg host-cfg.txt ug.json build-plan.json
+nqc build --cfg host-cfg.txt ug.json build-plan.json
 nqc patch build-plan.json
 
 # ship build-plan.json + sources + cargo-home to runner
@@ -113,7 +113,7 @@ build the rustc command from scratch. no scraping `cargo build -vv` or
 shelling out to cargo for command-extraction -- planner contract forbids
 it.
 
-### plan format: lower at plan time
+### plan format: build at plan time
 
 planner emits build-plan-shape JSON (same schema today's runner already
 walks). means:
@@ -156,7 +156,7 @@ every cargo-set env var rustc + build scripts read:
 
 cfg parser converts `rustc --print cfg` text into the `CARGO_CFG_*` map.
 
-### cli shape: explicit `nqc lower` subcommand
+### cli shape: explicit `nqc build` subcommand (originally `lower`)
 
 new top-level verb. flags:
 
@@ -170,7 +170,7 @@ are expected during early iteration; reusable users can pin nqc version.
 
 ```
 go/cargo/unitgraph/
-  lower.go      -- orchestrator: Lower(ug, cfg, meta, nqcCfg) -> cargo.BuildPlan
+  lower.go      -- orchestrator: builds a cargo.BuildPlan from a UnitGraph
   args.go       -- rustc args from a single unit
   env.go        -- env-var synthesis (incl. CARGO_CFG_*)
   hash.go       -- self-consistent metadata hash
@@ -195,7 +195,7 @@ two layers:
   [fd][fd] (pinned by sha) inside `rust:1.84` (where `--build-plan`
   still works). anonymise both via the existing patch step so the
   fixtures contain `{{PROJECT_ROOT}}` / `{{CARGO_HOME}}` placeholders
-  instead of machine-specific paths. test loads the unit-graph, lowers,
+  instead of machine-specific paths. test loads the unit-graph, builds,
   compares semantically against the captured build-plan:
   - exact match: `program`, `compile_mode`, `target_kind`,
     `package_name`, env keys, env values for cargo-derived vars
@@ -228,10 +228,11 @@ seven small commits:
    derivers.
 
 4. `feat: cargo/unitgraph Lower orchestrator`
-   `lower.go` wires the above into one entry point. unit tests using
+   `lower.go` (`Lower()` function) wires the above into one entry point. unit tests using
    hand-built small unit-graphs.
 
-5. `feat: nqc lower subcommand`
+5. `feat: nqc build subcommand` (was originally landed as `nqc lower`,
+   later renamed)
    cli wiring. main.go gains a third subcommand using go-flags. README
    updated to describe the experimental flow.
 

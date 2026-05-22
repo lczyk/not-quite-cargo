@@ -24,7 +24,7 @@ three steps against `nqc-sudo-ug-demo:1.84` (= `rust:1.84` +
 
 if cargo's absence in the runner stage caused the build to fail, the
 demo would exit non-zero. instead the runner produces the sudo-rs
-binaries -- entirely from rustc + the lowered plan, no cargo.
+binaries -- entirely from rustc + the derived plan, no cargo.
 
 ## prerequisites
 

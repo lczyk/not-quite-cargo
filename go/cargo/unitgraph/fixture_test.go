@@ -20,7 +20,7 @@ const (
 )
 
 // TestFixture_FdLowering loads the captured fd unit-graph fixture,
-// lowers it, and sanity-checks the result.
+// builds the corresponding plan, and sanity-checks the result.
 //
 // The fixture files (`testdata/fd/{unit-graph,build-plan}.json`) are
 // produced by `testdata/fd/capture.sh` against rust:1.84 -- see the
@@ -59,7 +59,7 @@ func TestFixture_FdLowering(t *testing.T) {
 
 	// At least one proc-macro unit and one custom-build unit -- fd
 	// pulls in clap_derive (proc-macro) and various deps with build
-	// scripts. Confirms our type-aware lowering branched correctly.
+	// scripts. Confirms our type-aware build branched correctly.
 	var sawProcMacro, sawCustomBuild, sawRunCustomBuild bool
 	for i := range ug.Units {
 		if ug.Units[i].IsProcMacro() {
@@ -139,6 +139,6 @@ func TestFixture_FdLowering(t *testing.T) {
 		}
 		assert.NoError(t, json.Unmarshal(bpData, &bp))
 		assert.Equal(t, len(got.Invocations), len(bp.Invocations),
-			"lowered invocation count should match cargo's --build-plan ground truth")
+			"built invocation count should match cargo's --build-plan ground truth")
 	}
 }

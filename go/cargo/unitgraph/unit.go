@@ -5,7 +5,7 @@ import "slices"
 // Unit mirrors a single entry in cargo's `--unit-graph` JSON output.
 //
 // Fields are decoded directly from the JSON shape cargo emits; only the
-// fields the lowerer reads are modelled (others are tolerated as unknown
+// fields the build step reads are modelled (others are tolerated as unknown
 // keys by encoding/json's default behaviour).
 type Unit struct {
 	PkgID        string      `json:"pkg_id"`

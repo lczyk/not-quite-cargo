@@ -105,7 +105,7 @@ func (c *BuildCommand) Execute(_ []string) error {
 	if _, err := os.Stdout.Write(append(body, '\n')); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
-	log.Printf("lowered %d units", len(out.Invocations))
+	log.Printf("built %d invocations from %d units", len(out.Invocations), len(ug.Units))
 	return nil
 }
 

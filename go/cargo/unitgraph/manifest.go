@@ -8,7 +8,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// rawManifest captures the slice of Cargo.toml the lowerer reads.
+// rawManifest captures the slice of Cargo.toml the build step reads.
 //
 // Each inheritable field accepts either a literal value (`version = "1.0"`)
 // or the workspace-inheritance marker (`version.workspace = true`); we

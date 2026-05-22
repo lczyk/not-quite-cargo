@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// LowerOptions controls the lowering. Pure transform: Lower reads no
+// LowerOptions controls the build. Pure transform: Lower reads no
 // files beyond the unit-graph passed in by the caller. Everything else
 // is opts.
 type LowerOptions struct {
@@ -48,9 +48,9 @@ type LowerOptions struct {
 	RegistryIndex string
 }
 
-// LowerOutput is the result of lowering: an `Invocation`-shaped JSON
-// document equivalent to a cargo --build-plan output, plus warnings
-// the caller may want to surface.
+// LowerOutput is the result of the build step: an `Invocation`-shaped
+// JSON document equivalent to a cargo --build-plan output, plus
+// warnings the caller may want to surface.
 type LowerOutput struct {
 	Invocations []Invocation
 	Inputs      []string
@@ -524,7 +524,7 @@ func deriveCargoHome(ug *UnitGraph) string {
 // deriveRegistryIndex extracts the content-addressed index subdir name
 // from any registry+ unit's src_path. cargo's layout is
 // <CARGO_HOME>/registry/src/<index-name>/<crate>-<version>/...; we want
-// "<index-name>" so the lowerer can splice it back into manifest dirs.
+// "<index-name>" so the build step can splice it back into manifest dirs.
 func deriveRegistryIndex(ug *UnitGraph) string {
 	const marker = "/registry/src/"
 	for i := range ug.Units {

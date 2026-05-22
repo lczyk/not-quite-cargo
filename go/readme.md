@@ -12,7 +12,7 @@ only one binary.
 
 - `cmd/not-quite-cargo/` -- cli entrypoint, uses [go-flags](https://github.com/jessevdk/go-flags)
 - `cargo/` -- library package (config, plan, patch, run, topo, deepreplace, directives)
-- `cargo/unitgraph/` -- **experimental**: lower a cargo `--unit-graph` into a build plan
+- `cargo/unitgraph/` -- **experimental**: derive a build plan from a cargo `--unit-graph`
 - `cargo/testdata/` -- fixtures for the patch golden test
 - `internal/version/` -- generated version info (gitignored, regenerated via `make build`)
 - `examples/sudo/` -- end-to-end demo: compile sudo-rs without cargo on the runner
@@ -47,8 +47,8 @@ stable.
 
 cargo 1.93.0 removed `--build-plan` ([rust-lang/cargo#16212][bp-removal]).
 the closest surviving replacement is `--unit-graph`, but it only carries
-the unit DAG + metadata; nqc lowers it back into a build-plan-shape file
-via the `lower` subcommand. correctness is best-effort; see
+the unit DAG + metadata; nqc derives a build-plan-shape file from it
+via the `build` subcommand. correctness is best-effort; see
 [`unit-graph-plan.md`][plan] at the repo root for the design notes and
 known limitations.
 
@@ -78,10 +78,10 @@ for the cargo home). v0 scope -- linux + macos on aarch64 only. defaults to
 
 manifest loads are best-effort: when a Cargo.toml can't be found
 (captured plans often reference machines that don't have every dep's
-source on disk), the lowerer warns + falls back to pkg_id-only
+source on disk), the build step warns + falls back to pkg_id-only
 metadata for that unit.
 
-the lowered plan is written to stdout; pipe or redirect.
+the derived plan is written to stdout; pipe or redirect.
 
 [bp-removal]: https://github.com/rust-lang/cargo/pull/16212
 [plan]: ../unit-graph-plan.md
