@@ -69,11 +69,11 @@ license = "MIT OR Apache-2.0"
 
 func tinyOpts(cargoHome string) LowerOptions {
 	return LowerOptions{
-		HostTriple:    "x86_64-unknown-linux-gnu",
+		HostTriple:    "aarch64-unknown-linux-gnu",
 		CargoHome:     cargoHome,
 		ProjectRoot:   "/proj",
 		RustcPath:     "/some/rustc",
-		Target:        Target{OS: "linux", Arch: "x86_64"},
+		Target:        Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
 		RegistryIndex: "index.crates.io-test",
 	}
 }
@@ -122,7 +122,7 @@ func TestLower_TinyGraph(t *testing.T) {
 func TestLower_RejectsBadVersion(t *testing.T) {
 	ug := &UnitGraph{Version: 99}
 	_, err := Lower(ug, LowerOptions{
-		Target:      Target{OS: "linux", Arch: "x86_64"},
+		Target:      Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
 		ProjectRoot: "/proj",
 		RustcPath:   "rustc",
 	})
@@ -132,25 +132,69 @@ func TestLower_RejectsBadVersion(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestLower_RequiresTargetOSArch(t *testing.T) {
+func TestLower_RequiresValidTarget(t *testing.T) {
 	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{})
-	assert.Error(t, err, "Target.OS and Target.Arch are required")
-}
-
-func TestLower_RequiresProjectRoot(t *testing.T) {
-	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{
-		Target:    Target{OS: "linux", Arch: "x86_64"},
-		RustcPath: "rustc",
-	})
-	assert.Error(t, err, "ProjectRoot is required")
+	assert.Error(t, err, assert.AnyError)
 }
 
 func TestLower_RequiresRustcPath(t *testing.T) {
 	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{
-		Target:      Target{OS: "linux", Arch: "x86_64"},
-		ProjectRoot: "/proj",
+		Target: Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
 	})
 	assert.Error(t, err, "RustcPath is required")
+}
+
+func TestLower_DerivesProjectRootFromUnitGraph(t *testing.T) {
+	// path+ pkg_id with file:// URL is the project root.
+	ug := &UnitGraph{
+		Version: 1,
+		Units: []Unit{
+			{
+				PkgID:   "path+file:///work/myproj#demo@0.1.0",
+				Target:  UnitTarget{Kind: []string{"bin"}, CrateTypes: []string{"bin"}, Name: "demo", SrcPath: "/work/myproj/src/main.rs", Edition: "2021"},
+				Profile: UnitProfile{Name: "dev", OptLevel: "0", DebugAssertions: true, OverflowChecks: true, Panic: "unwind", Debuginfo: float64(2)},
+				Mode:    "build",
+			},
+		},
+	}
+	out, err := Lower(ug, LowerOptions{
+		Target:    Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
+		RustcPath: "rustc",
+	})
+	assert.NoError(t, err)
+	// The bin invocation's output should land under the derived project root.
+	assert.ContainsString(t, out.Invocations[0].Outputs[0], "/work/myproj/target/")
+}
+
+func TestLower_DerivesCargoHomeFromUnitGraph(t *testing.T) {
+	// A registry src_path under /home/u/.cargo-custom/registry/src/...
+	// should yield CargoHome = /home/u/.cargo-custom.
+	ug := &UnitGraph{
+		Version: 1,
+		Units: []Unit{
+			{
+				PkgID:        "path+file:///proj#demo@0.1.0",
+				Target:       UnitTarget{Kind: []string{"bin"}, CrateTypes: []string{"bin"}, Name: "demo", SrcPath: "/proj/src/main.rs", Edition: "2021"},
+				Profile:      UnitProfile{Name: "dev", OptLevel: "0", DebugAssertions: true, OverflowChecks: true, Panic: "unwind", Debuginfo: float64(2)},
+				Mode:         "build",
+				Dependencies: []UnitDep{{Index: 1, ExternCrateName: "serde"}},
+			},
+			{
+				PkgID:   "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.0",
+				Target:  UnitTarget{Kind: []string{"lib"}, CrateTypes: []string{"lib"}, Name: "serde", SrcPath: "/home/u/.cargo-custom/registry/src/index/serde-1.0.0/src/lib.rs", Edition: "2018"},
+				Profile: UnitProfile{Name: "dev", OptLevel: "0", DebugAssertions: true, OverflowChecks: true, Panic: "unwind", Debuginfo: float64(2)},
+				Mode:    "build",
+			},
+		},
+	}
+	out, err := Lower(ug, LowerOptions{
+		Target:    Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
+		RustcPath: "rustc",
+	})
+	assert.NoError(t, err)
+	// CARGO_MANIFEST_DIR for the registry crate should use the derived cargo home.
+	libInv := out.Invocations[1]
+	assert.ContainsString(t, libInv.Env["CARGO_MANIFEST_DIR"], "/home/u/.cargo-custom/registry/src/")
 }
 
 func TestLoadUnitGraph_RoundTrip(t *testing.T) {

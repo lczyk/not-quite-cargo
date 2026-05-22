@@ -6,74 +6,49 @@ import (
 	"github.com/lczyk/assert"
 )
 
-func TestTarget_TripleLinux(t *testing.T) {
-	tt := Target{OS: "linux", Arch: "x86_64"}
-	assert.Equal(t, tt.Triple(), "x86_64-unknown-linux-gnu")
+func TestTarget_TripleLinuxGnu(t *testing.T) {
+	tt := Target{OS: "linux", Arch: "aarch64", Libc: "gnu"}
+	assert.Equal(t, tt.Triple(), "aarch64-unknown-linux-gnu")
 }
 
 func TestTarget_TripleLinuxMusl(t *testing.T) {
-	tt := Target{OS: "linux", Arch: "aarch64", Env: "musl"}
+	tt := Target{OS: "linux", Arch: "aarch64", Libc: "musl"}
 	assert.Equal(t, tt.Triple(), "aarch64-unknown-linux-musl")
 }
 
-func TestTarget_TripleDarwin(t *testing.T) {
-	tt := Target{OS: "macos", Arch: "aarch64"}
-	assert.Equal(t, tt.Triple(), "aarch64-apple-macos")
+func TestTarget_TripleMacos(t *testing.T) {
+	tt := Target{OS: "macos", Arch: "aarch64", Libc: "none"}
+	assert.Equal(t, tt.Triple(), "aarch64-apple-darwin")
 }
 
-func TestTarget_TripleWindows(t *testing.T) {
-	tt := Target{OS: "windows", Arch: "x86_64"}
-	assert.Equal(t, tt.Triple(), "x86_64-pc-windows-msvc")
-}
-
-func TestTarget_Family(t *testing.T) {
-	cases := []struct {
-		os   string
-		want string
-	}{
-		{"linux", "unix"},
-		{"macos", "unix"},
-		{"freebsd", "unix"},
-		{"windows", "windows"},
-		{"unknown-os", ""},
-	}
-	for _, c := range cases {
-		assert.Equal(t, (Target{OS: c.os}).Family(), c.want, "os=%s", c.os)
+func TestTarget_ValidateAccepts(t *testing.T) {
+	for _, ok := range []Target{
+		{OS: "linux", Arch: "aarch64", Libc: "gnu"},
+		{OS: "linux", Arch: "aarch64", Libc: "musl"},
+		{OS: "macos", Arch: "aarch64", Libc: "none"},
+	} {
+		assert.NoError(t, ok.Validate(), "%+v", ok)
 	}
 }
 
-func TestTarget_PointerWidth(t *testing.T) {
-	cases := []struct {
-		arch string
-		want string
-	}{
-		{"x86_64", "64"},
-		{"aarch64", "64"},
-		{"i686", "32"},
-		{"wasm32", "32"},
-		{"weirdarch", ""},
+func TestTarget_ValidateRejects(t *testing.T) {
+	cases := []Target{
+		{OS: "windows", Arch: "aarch64", Libc: "gnu"},
+		{OS: "linux", Arch: "x86_64", Libc: "gnu"},
+		{OS: "linux", Arch: "aarch64", Libc: "msvc"},
+		{OS: "macos", Arch: "aarch64", Libc: "gnu"},
+		{OS: "", Arch: "aarch64", Libc: "gnu"},
 	}
-	for _, c := range cases {
-		assert.Equal(t, (Target{Arch: c.arch}).PointerWidth(), c.want, "arch=%s", c.arch)
+	for _, bad := range cases {
+		assert.Error(t, bad.Validate(), assert.AnyError, "should reject %+v", bad)
 	}
 }
 
-func TestTarget_Endian(t *testing.T) {
-	assert.Equal(t, (Target{Arch: "x86_64"}).Endian(), "little")
-	assert.Equal(t, (Target{Arch: "powerpc"}).Endian(), "big")
-}
-
-func TestTarget_Vendor(t *testing.T) {
-	assert.Equal(t, (Target{OS: "macos"}).Vendor(), "apple")
-	assert.Equal(t, (Target{OS: "windows"}).Vendor(), "pc")
-	assert.Equal(t, (Target{OS: "linux"}).Vendor(), "unknown")
-}
-
-func TestTarget_CargoCfgEnvLinux(t *testing.T) {
-	tt := Target{OS: "linux", Arch: "x86_64"}
+func TestTarget_CargoCfgEnvLinuxGnu(t *testing.T) {
+	tt := Target{OS: "linux", Arch: "aarch64", Libc: "gnu"}
 	env := tt.CargoCfgEnv()
 	assert.Equal(t, env["CARGO_CFG_TARGET_OS"], "linux")
-	assert.Equal(t, env["CARGO_CFG_TARGET_ARCH"], "x86_64")
+	assert.Equal(t, env["CARGO_CFG_TARGET_ARCH"], "aarch64")
 	assert.Equal(t, env["CARGO_CFG_TARGET_FAMILY"], "unix")
 	assert.Equal(t, env["CARGO_CFG_TARGET_ENV"], "gnu")
 	assert.Equal(t, env["CARGO_CFG_TARGET_POINTER_WIDTH"], "64")
@@ -81,25 +56,14 @@ func TestTarget_CargoCfgEnvLinux(t *testing.T) {
 	assert.Equal(t, env["CARGO_CFG_TARGET_VENDOR"], "unknown")
 	_, hasUnix := env["CARGO_CFG_UNIX"]
 	assert.That(t, hasUnix)
-	_, hasWindows := env["CARGO_CFG_WINDOWS"]
-	assert.That(t, !hasWindows)
 }
 
-func TestTarget_CargoCfgEnvWindows(t *testing.T) {
-	tt := Target{OS: "windows", Arch: "x86_64"}
+func TestTarget_CargoCfgEnvMacosNoneEmptiesEnv(t *testing.T) {
+	tt := Target{OS: "macos", Arch: "aarch64", Libc: "none"}
 	env := tt.CargoCfgEnv()
-	assert.Equal(t, env["CARGO_CFG_TARGET_FAMILY"], "windows")
-	assert.Equal(t, env["CARGO_CFG_TARGET_ENV"], "msvc")
-	_, hasWindows := env["CARGO_CFG_WINDOWS"]
-	assert.That(t, hasWindows)
-	_, hasUnix := env["CARGO_CFG_UNIX"]
-	assert.That(t, !hasUnix)
-}
-
-func TestTarget_CargoCfgEnvEnvOverride(t *testing.T) {
-	tt := Target{OS: "linux", Arch: "x86_64", Env: "musl"}
-	env := tt.CargoCfgEnv()
-	assert.Equal(t, env["CARGO_CFG_TARGET_ENV"], "musl")
+	assert.Equal(t, env["CARGO_CFG_TARGET_OS"], "macos")
+	assert.Equal(t, env["CARGO_CFG_TARGET_ENV"], "")
+	assert.Equal(t, env["CARGO_CFG_TARGET_VENDOR"], "apple")
 }
 
 func TestPkgEnv_BasicAndSemverSplit(t *testing.T) {
@@ -137,7 +101,6 @@ func TestPkgEnv_VersionBuildMetadataStripped(t *testing.T) {
 }
 
 func TestPkgEnv_MultipleAuthors(t *testing.T) {
-	// Cargo joins multiple authors with `:`.
 	env := PkgEnv(PkgMetadata{
 		Authors: []string{"Alice", "Bob"},
 	})

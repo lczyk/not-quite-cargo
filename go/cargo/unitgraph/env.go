@@ -1,6 +1,7 @@
 package unitgraph
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -21,98 +22,83 @@ type PkgMetadata struct {
 	Readme      string
 }
 
-// Target captures the cfg-driving subset of a rust target. OS + Arch
-// are user inputs; everything else (family, env, pointer-width, endian,
-// vendor) derives from those two unless explicitly overridden.
+// Target captures the cfg-driving subset of a rust target.
 //
-// Replaces the prior CfgMap abstraction. The two fields are what build
-// scripts read 99% of the time; the rest is a deterministic function of
-// them, so we compute on demand rather than ask the user.
+// SCOPE: v0 only supports linux + macos on aarch64. Anything else
+// returns an error from Validate(). Adding more targets is a question
+// of expanding the small lookup tables here -- but we don't claim
+// correctness for what we haven't tested.
+//
+// Libc carries the rust target env token (gnu / musl) for linux, or
+// "none" for macos. cargo emits CARGO_CFG_TARGET_ENV as the empty
+// string for "none".
 type Target struct {
-	// OS is the lower-case rust target OS (linux, macos, windows,
-	// freebsd, openbsd, netbsd, android, ios, ...).
-	OS string
-	// Arch is the lower-case rust target architecture (x86_64,
-	// aarch64, x86, arm, ...).
-	Arch string
-	// Env optionally overrides the libc env (gnu / musl / msvc); empty
-	// asks Target to pick a sensible default from OS.
-	Env string
+	OS   string // linux | macos
+	Arch string // aarch64
+	Libc string // gnu | musl (linux only) | none (macos)
 }
 
-// Triple synthesises a rust target triple like "aarch64-apple-darwin"
-// from OS + Arch. Used to populate TARGET / HOST env vars and as the
-// HostTriple input to Lower.
+// Validate enforces the supported scope.
+func (t Target) Validate() error {
+	switch t.OS {
+	case "linux":
+		switch t.Libc {
+		case "gnu", "musl":
+		default:
+			return fmt.Errorf("target: linux libc must be gnu or musl, got %q", t.Libc)
+		}
+	case "macos":
+		if t.Libc != "none" {
+			return fmt.Errorf("target: macos libc must be none, got %q", t.Libc)
+		}
+	default:
+		return fmt.Errorf("target: OS must be linux or macos, got %q", t.OS)
+	}
+	if t.Arch != "aarch64" {
+		return fmt.Errorf("target: arch must be aarch64, got %q", t.Arch)
+	}
+	return nil
+}
+
+// Triple synthesises the rust target triple.
+//
+//	linux + gnu  -> aarch64-unknown-linux-gnu
+//	linux + musl -> aarch64-unknown-linux-musl
+//	macos + none -> aarch64-apple-darwin
 func (t Target) Triple() string {
 	switch t.OS {
-	case "macos", "ios":
-		return t.Arch + "-apple-" + t.OS
-	case "windows":
-		env := t.envOr("msvc")
-		return t.Arch + "-pc-windows-" + env
+	case "macos":
+		return t.Arch + "-apple-darwin"
 	case "linux":
-		env := t.envOr("gnu")
-		return t.Arch + "-unknown-linux-" + env
+		return t.Arch + "-unknown-linux-" + t.Libc
 	default:
-		if t.OS == "" {
-			return t.Arch
-		}
-		return t.Arch + "-unknown-" + t.OS
+		return ""
 	}
 }
 
-// Family returns "unix" / "windows" / "" depending on OS.
+// Family returns "unix" for the two OSes we support.
 func (t Target) Family() string {
-	switch t.OS {
-	case "linux", "macos", "ios", "android", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos":
-		return "unix"
-	case "windows":
-		return "windows"
-	default:
-		return ""
-	}
+	return "unix"
 }
 
-// PointerWidth returns "64" / "32" / "" depending on Arch.
+// PointerWidth is "64" -- only aarch64 supported.
 func (t Target) PointerWidth() string {
-	switch t.Arch {
-	case "x86_64", "aarch64", "powerpc64", "powerpc64le", "riscv64", "s390x", "mips64", "mips64el", "loongarch64", "sparc64":
-		return "64"
-	case "i686", "i586", "i386", "x86", "arm", "armv7", "thumbv7em", "riscv32", "mips", "mipsel", "powerpc", "wasm32":
-		return "32"
-	default:
-		return ""
-	}
+	return "64"
 }
 
-// Endian returns "big" / "little".
+// Endian is "little" for aarch64.
 func (t Target) Endian() string {
-	switch t.Arch {
-	case "powerpc64", "powerpc", "mips", "mips64", "s390x", "sparc64":
-		return "big"
-	default:
-		return "little"
-	}
+	return "little"
 }
 
-// Vendor returns the rust target-triple vendor token. Cargo's
-// CARGO_CFG_TARGET_VENDOR uses this.
+// Vendor returns the rust target-triple vendor token.
 func (t Target) Vendor() string {
 	switch t.OS {
-	case "macos", "ios":
+	case "macos":
 		return "apple"
-	case "windows":
-		return "pc"
 	default:
 		return "unknown"
 	}
-}
-
-func (t Target) envOr(def string) string {
-	if t.Env != "" {
-		return t.Env
-	}
-	return def
 }
 
 // CargoCfgEnv emits the CARGO_CFG_* env-var subset that cargo would set
@@ -123,12 +109,19 @@ func (t Target) envOr(def string) string {
 // target_feature, target_has_atomic, debug_assertions) are deliberately
 // omitted: they need rustc to enumerate them faithfully, and the
 // experimental flow's planner contract forbids invoking it.
+//
+// `Libc == "none"` maps to CARGO_CFG_TARGET_ENV="" (matches cargo's
+// emission for darwin etc.).
 func (t Target) CargoCfgEnv() map[string]string {
+	libc := t.Libc
+	if libc == "none" {
+		libc = ""
+	}
 	out := map[string]string{
 		"CARGO_CFG_TARGET_OS":            t.OS,
 		"CARGO_CFG_TARGET_ARCH":          t.Arch,
 		"CARGO_CFG_TARGET_FAMILY":        t.Family(),
-		"CARGO_CFG_TARGET_ENV":           t.envOr(defaultEnvFor(t.OS)),
+		"CARGO_CFG_TARGET_ENV":           libc,
 		"CARGO_CFG_TARGET_POINTER_WIDTH": t.PointerWidth(),
 		"CARGO_CFG_TARGET_ENDIAN":        t.Endian(),
 		"CARGO_CFG_TARGET_VENDOR":        t.Vendor(),
@@ -140,17 +133,6 @@ func (t Target) CargoCfgEnv() map[string]string {
 		out["CARGO_CFG_WINDOWS"] = ""
 	}
 	return out
-}
-
-func defaultEnvFor(os string) string {
-	switch os {
-	case "linux", "android":
-		return "gnu"
-	case "windows":
-		return "msvc"
-	default:
-		return ""
-	}
 }
 
 // PkgEnv synthesises the CARGO_PKG_* env vars from a manifest extract.

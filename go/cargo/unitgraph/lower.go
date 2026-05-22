@@ -86,17 +86,25 @@ func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
 	if ug == nil {
 		return nil, fmt.Errorf("lower: nil unit-graph")
 	}
-	if opt.Target.OS == "" || opt.Target.Arch == "" {
-		return nil, fmt.Errorf("lower: Target.OS and Target.Arch are required")
+	if err := opt.Target.Validate(); err != nil {
+		return nil, fmt.Errorf("lower: %w", err)
 	}
 	if opt.HostTriple == "" {
 		opt.HostTriple = opt.Target.Triple()
 	}
-	if opt.ProjectRoot == "" {
-		return nil, fmt.Errorf("lower: ProjectRoot is required")
-	}
 	if opt.RustcPath == "" {
 		return nil, fmt.Errorf("lower: RustcPath is required")
+	}
+
+	// Project root + cargo home are auto-derived from the unit-graph
+	// when not explicitly provided. The unit-graph encodes them in
+	// pkg_ids (path+file:// for the workspace, registry source paths
+	// for fetched crates).
+	if opt.ProjectRoot == "" {
+		opt.ProjectRoot = deriveProjectRoot(ug)
+	}
+	if opt.CargoHome == "" {
+		opt.CargoHome = deriveCargoHome(ug)
 	}
 
 	out := &LowerOutput{
@@ -468,6 +476,69 @@ func profileDir(name string) string {
 // holding the dep-info file is the parent of incremental/).
 func incrementalDirFor(projectRoot, profileDir string, u *Unit, hash string) string {
 	return filepath.Join(projectRoot, "target", profileDir, "incremental", underscore(u.Target.Name)+"-"+hash)
+}
+
+// deriveProjectRoot walks the unit-graph for a path+ unit and returns
+// the longest common parent of all such units' source URLs -- i.e. the
+// workspace root. Returns "" if no path+ unit exists.
+func deriveProjectRoot(ug *UnitGraph) string {
+	paths := []string{}
+	for i := range ug.Units {
+		id, err := ParsePkgID(ug.Units[i].PkgID)
+		if err != nil || id.Kind != PkgIDPath {
+			continue
+		}
+		// Strip the file:// scheme to get an absolute path.
+		p := strings.TrimPrefix(id.SourceURL, "file://")
+		if p == "" {
+			continue
+		}
+		paths = append(paths, p)
+	}
+	return longestCommonDir(paths)
+}
+
+// deriveCargoHome inspects the unit-graph for a registry+ unit's
+// src_path and walks up until the "registry" segment, returning the
+// preceding path (= $CARGO_HOME). Returns "" if no registry unit exists.
+func deriveCargoHome(ug *UnitGraph) string {
+	for i := range ug.Units {
+		src := ug.Units[i].Target.SrcPath
+		if src == "" {
+			continue
+		}
+		// Registry sources land under <CARGO_HOME>/registry/src/<index>/...;
+		// the segment right before "registry" is CARGO_HOME.
+		idx := strings.Index(src, "/registry/src/")
+		if idx <= 0 {
+			continue
+		}
+		return src[:idx]
+	}
+	return ""
+}
+
+// longestCommonDir returns the longest directory prefix common to all
+// paths in the slice. Used for workspace-root detection.
+func longestCommonDir(paths []string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	if len(paths) == 1 {
+		return paths[0]
+	}
+	prefix := paths[0]
+	for _, p := range paths[1:] {
+		for !strings.HasPrefix(p, prefix) {
+			// Trim to last "/" boundary.
+			i := strings.LastIndex(prefix, "/")
+			if i < 0 {
+				return ""
+			}
+			prefix = prefix[:i]
+		}
+	}
+	return prefix
 }
 
 // LoadUnitGraph reads a unit-graph JSON file from disk.

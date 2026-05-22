@@ -62,12 +62,10 @@ func (c *RunCommand) Execute(_ []string) error {
 // may change between nqc releases. see unit-graph-plan.md at the repo
 // root for the design notes and known limitations.
 type LowerCommand struct {
-	OS          string `long:"os" required:"yes" description:"Target OS (linux, macos, windows, freebsd, ...)"`
-	Arch        string `long:"arch" required:"yes" description:"Target arch (x86_64, aarch64, i686, ...)"`
-	Env         string `long:"env" required:"yes" description:"Target libc env (gnu, musl, msvc) -- use empty value for OSes that don't need one (e.g. macos)"`
-	ProjectRoot string `long:"project-root" required:"yes" description:"Project root used for output paths"`
-	CargoHome   string `long:"cargo-home" required:"yes" description:"CARGO_HOME path spliced into manifest dirs (no file lookups)"`
-	RustcPath   string `long:"rustc" default:"rustc" description:"rustc program name to embed in the plan"`
+	OS        string `long:"os" required:"yes" description:"Target OS: linux or macos"`
+	Arch      string `long:"arch" required:"yes" description:"Target arch: aarch64 (only supported value in v0)"`
+	Libc      string `long:"libc" default:"gnu" description:"Target libc: gnu / musl (linux), or 'none' (macos)"`
+	RustcPath string `long:"rustc" default:"rustc" description:"rustc program name to embed in the plan"`
 
 	Args struct {
 		UnitGraph string `positional-arg-name:"unit-graph.json" description:"Input unit-graph JSON"`
@@ -80,11 +78,13 @@ func (c *LowerCommand) Execute(_ []string) error {
 		return err
 	}
 
+	// Project root and cargo home are auto-derived from the unit-graph:
+	// path+ pkg_ids for the workspace and registry+ source paths for
+	// the cargo home. Lower handles the derivation when these are empty
+	// in opts.
 	out, err := unitgraph.Lower(ug, unitgraph.LowerOptions{
-		Target:      unitgraph.Target{OS: c.OS, Arch: c.Arch, Env: c.Env},
-		CargoHome:   c.CargoHome,
-		ProjectRoot: c.ProjectRoot,
-		RustcPath:   c.RustcPath,
+		Target:    unitgraph.Target{OS: c.OS, Arch: c.Arch, Libc: c.Libc},
+		RustcPath: c.RustcPath,
 	})
 	if err != nil {
 		return err

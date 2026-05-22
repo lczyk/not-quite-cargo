@@ -41,12 +41,10 @@ func TestFixture_FdLowering(t *testing.T) {
 
 	got, err := Lower(ug, LowerOptions{
 		// Capture container is linux/<host-arch>; pass linux + a
-		// representative arch. The lowering uses HostTriple only for
-		// the `platform: null` units, none of which need an exact match.
-		Target:      Target{OS: "linux", Arch: "aarch64", Env: "gnu"},
-		CargoHome:   fdFixtureCargoHome,
-		ProjectRoot: fdFixtureProjectRoot,
-		RustcPath:   "rustc",
+		// representative arch. ProjectRoot + CargoHome derived from the
+		// unit-graph automatically (path+ + registry+ source paths).
+		Target:    Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
+		RustcPath: "rustc",
 	})
 	require.NoError(t, err)
 

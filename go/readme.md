@@ -54,26 +54,25 @@ known limitations.
 
 ```
 cargo build -Z unstable-options --unit-graph > ug.json
-./bin/not-quite-cargo lower \
-    --os linux --arch x86_64 --env gnu \
-    --project-root /work --cargo-home /work/.cargo --rustc rustc \
-    ug.json > build_plan.json
+./bin/not-quite-cargo lower --os linux --arch aarch64 ug.json > build_plan.json
 ./bin/not-quite-cargo patch build_plan.json
 ./bin/not-quite-cargo run build_plan.json
 ```
 
-every `lower` flag is required -- no defaults, no host-detection. the
-tool is a pure transform: same inputs give same output regardless of
-the machine it runs on.
+flags on `lower`:
 
-- `--os <name>` -- target OS (linux, macos, windows, freebsd, ...).
-- `--arch <name>` -- target arch (x86_64, aarch64, ...).
-- `--env <name>` -- target libc env (gnu, musl, msvc). use the empty
-  string for OSes that don't have a libc env distinction (e.g. macos).
-- `--project-root <path>` -- spliced into output paths.
-- `--cargo-home <path>` -- spliced into manifest dir paths; no file
-  lookups happen against it.
-- `--rustc <name>` -- program string in the emitted plan. defaults to
+- `--os <name>` -- target OS: `linux` or `macos`. (v0 doesn't support
+  anything else.)
+- `--arch <name>` -- target arch: `aarch64`. (v0 doesn't support
+  anything else.)
+- `--libc <name>` -- `gnu` (default) / `musl` on linux, or `none` on
+  macos.
+- `--rustc <name>` -- program string in the emitted plan; defaults to
+  `rustc`.
+
+`--project-root` and `--cargo-home` are auto-derived from the input
+unit-graph (path+ pkg_id for the workspace, registry+ source paths
+for the cargo home). v0 scope -- linux + macos on aarch64 only. defaults to
   `rustc` (every other flag is required).
 
 manifest loads are best-effort: when a Cargo.toml can't be found
