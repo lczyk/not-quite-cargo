@@ -76,6 +76,62 @@ func TestFixture_FdLowering(t *testing.T) {
 	assert.That(t, sawProcMacro, "fd fixture should contain at least one proc-macro unit")
 	assert.That(t, sawCustomBuild, "fd fixture should contain at least one custom-build compile unit")
 	assert.That(t, sawRunCustomBuild, "fd fixture should contain at least one run-custom-build unit")
+
+	// Spot-check the root fd-find unit: must be a bin compile, edition
+	// 2021, with --extern proc_macro absent (it's not a proc-macro
+	// crate), --cap-lints absent (fd-find itself is the primary
+	// workspace member), and CARGO_BIN_NAME set.
+	fdIdx := -1
+	for i, inv := range got.Invocations {
+		if inv.PackageName == "fd-find" && inv.CompileMode == "build" {
+			// Pick the unit whose target is "fd" (the bin), not
+			// "build_script_build".
+			if len(inv.TargetKind) > 0 && inv.TargetKind[0] == "bin" {
+				fdIdx = i
+				break
+			}
+		}
+	}
+	assert.That(t, fdIdx >= 0, "fd-find bin unit not found")
+	if fdIdx >= 0 {
+		fd := got.Invocations[fdIdx]
+		assert.Equal(t, fd.Env["CARGO_BIN_NAME"], "fd")
+		assert.Equal(t, fd.Env["CARGO_CRATE_NAME"], "fd")
+		assert.Equal(t, fd.Env["CARGO_PRIMARY_PACKAGE"], "1")
+		// Args must contain --crate-name fd, --edition=2021, no --cap-lints.
+		var sawEdition, sawCapLints bool
+		for i, a := range fd.Args {
+			if a == "--edition=2021" {
+				sawEdition = true
+			}
+			if a == "--cap-lints" {
+				sawCapLints = true
+			}
+			_ = i
+		}
+		assert.That(t, sawEdition, "fd unit must have --edition=2021")
+		assert.That(t, !sawCapLints, "fd-find is primary; should not get --cap-lints")
+	}
+
+	// Spot-check a proc-macro unit: must include --extern proc_macro
+	// and --cap-lints warn (clap_derive is a registry dep).
+	for _, inv := range got.Invocations {
+		if inv.PackageName != "clap_derive" || inv.CompileMode != "build" {
+			continue
+		}
+		var sawExternPM, sawCapLints bool
+		for i, a := range inv.Args {
+			if a == "--extern" && i+1 < len(inv.Args) && inv.Args[i+1] == "proc_macro" {
+				sawExternPM = true
+			}
+			if a == "--cap-lints" {
+				sawCapLints = true
+			}
+		}
+		assert.That(t, sawExternPM, "clap_derive must get --extern proc_macro")
+		assert.That(t, sawCapLints, "clap_derive is non-primary; should get --cap-lints")
+		break
+	}
 }
 
 // fdHostCfg is a representative rustc --print cfg output for aarch64
