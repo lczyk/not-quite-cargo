@@ -8,9 +8,9 @@ go version of not-quite-cargo.
 
 four steps: a one-time base-image build, two docker stages against
 that image (`nqc-sudo-demo:1.75-24.04` =
-`ubuntu/rust:1.75-24.04_stable` + `libpam0g-dev` + `pkg-config`, needed
-b/c sudo-rs links against `libpam`), then a final prove step in a
-fresh `ubuntu:24.04`:
+`ubuntu/rust:1.75-24.04_stable` + `libpam0g-dev`, needed b/c sudo-rs
+links against `libpam`), then a final prove step in a fresh
+`ubuntu:24.04`:
 
 1. **planner** -- has cargo + rustc. clones sudo-rs at a pinned tag, runs
    `cargo build -Z unstable-options --build-plan > build_plan.json` (with

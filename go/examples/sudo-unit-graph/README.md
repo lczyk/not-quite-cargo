@@ -12,8 +12,7 @@ users would have to do.
 ## what it does
 
 three steps against `nqc-sudo-ug-demo:1.84` (= `rust:1.84` +
-`libpam0g-dev` + `pkg-config` -- needed b/c sudo-rs links against
-`libpam`):
+`libpam0g-dev` -- needed b/c sudo-rs links against `libpam`):
 
 1. **planner** -- clones sudo-rs at the pinned tag, runs
    `cargo build -Z unstable-options --unit-graph`, then
