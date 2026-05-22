@@ -1,7 +1,7 @@
 [project]
 name = "not-quite-cargo"
 description = "Add your description here"
-version = "0.2.1"
+version = "0.3.0"
 authors = [{ name = "Marcin Konowalczyk", email = "marcin.konowalczyk@canonical.com" }]
 readme = "README.md"
 requires-python = ">=3.9"

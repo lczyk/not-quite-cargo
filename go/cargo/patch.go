@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -63,7 +64,7 @@ func Patch(path string, cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("marshal patched plan: %w", err)
 	}
-	if err := os.WriteFile(path, body, 0o644); err != nil {
+	if err := writeAtomic(path, body, 0o644); err != nil {
 		return fmt.Errorf("write patched plan: %w", err)
 	}
 	if cfg.Logger != nil {
@@ -86,12 +87,56 @@ func patchInvocation(inv map[string]any) {
 	}
 	if args, ok := inv["args"].([]any); ok {
 		filtered := make([]any, 0, len(args))
+		skipNext := false
 		for _, a := range args {
-			if s, ok := a.(string); ok && strings.HasPrefix(s, "--diagnostic-width") {
+			if skipNext {
+				skipNext = false
 				continue
+			}
+			if s, ok := a.(string); ok {
+				if s == "--diagnostic-width" {
+					// Two-arg form: drop value too.
+					skipNext = true
+					continue
+				}
+				if strings.HasPrefix(s, "--diagnostic-width=") {
+					continue
+				}
 			}
 			filtered = append(filtered, a)
 		}
 		inv["args"] = filtered
 	}
+}
+
+// writeAtomic writes data to a temp file in the destination directory then
+// renames over the target. If the process is interrupted mid-write the
+// original file is preserved.
+func writeAtomic(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, ".nqc-patch-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	cleanup := func() { _ = os.Remove(tmp) }
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		cleanup()
+		return err
+	}
+	if err := f.Chmod(perm); err != nil {
+		_ = f.Close()
+		cleanup()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		cleanup()
+		return err
+	}
+	return nil
 }

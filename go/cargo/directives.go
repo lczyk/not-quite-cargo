@@ -38,6 +38,10 @@ func ParseBuildScriptOutput(output string, logger Logger) *CustomBuildDirectives
 		if _, skip := ignoredDirectiveKeys[key]; skip {
 			continue
 		}
+		if value == "" {
+			logger.Warnf("empty value for build script directive %s: %s", key, raw)
+			continue
+		}
 		switch key {
 		case "rustc-cfg":
 			d.RustcFlags = append(d.RustcFlags, "--cfg", value)
@@ -55,8 +59,10 @@ func ParseBuildScriptOutput(output string, logger Logger) *CustomBuildDirectives
 				d.RustcFlags = append(d.RustcFlags, "-L", value)
 			}
 		case "rustc-env":
-			if k, v, ok := strings.Cut(value, "="); ok {
+			if k, v, ok := strings.Cut(value, "="); ok && k != "" {
 				d.EnvVars[k] = v
+			} else {
+				logger.Warnf("malformed rustc-env directive: %s", raw)
 			}
 		default:
 			logger.Warnf("unknown build script directive: %s", raw)

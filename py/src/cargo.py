@@ -33,13 +33,15 @@ import os
 import pathlib
 import subprocess as sub
 import sys
+import tempfile
 from dataclasses import dataclass
 from typing import TypeVar, no_type_check
 
 __author__ = "Marcin Konowalczyk"
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __changelog__ = [
+    ("0.3.0", "deterministic deep_replace, atomic patch write, two-arg diagnostic-width, warn on empty build-script values", "@lczyk"),
     ("0.2.1", "fix finding rustc in some environments", "@lczyk"),
     ("0.2.0", "add patch mode", "@lczyk"),
     ("0.1.0", "inital version", "@lczyk"),
@@ -84,18 +86,29 @@ _T = TypeVar("_T")
 
 
 def deep_replace(data: _T, replacements: dict[str, str]) -> _T:
-    """Recursively replace strings in a nested structure (dicts, lists, strings)."""
+    """Recursively replace strings in a nested structure (dicts, lists, strings).
+
+    Keys are applied in length-descending order so that when one replacement
+    key is a prefix of another (e.g. PROJECT_ROOT being a parent dir of
+    CARGO_HOME) the longer match wins.
+    """
+    # Sort once per top-level call -- recursive calls reuse the order.
+    sorted_keys = sorted(replacements.keys(), key=lambda k: (-len(k), k))
+    return _deep_replace(data, replacements, sorted_keys)
+
+
+def _deep_replace(data: _T, replacements: dict[str, str], sorted_keys: list[str]) -> _T:
     _type = type(data)
     if _type is dict:
         return {  # type: ignore
-            deep_replace(key, replacements): deep_replace(value, replacements)  # type: ignore
+            _deep_replace(key, replacements, sorted_keys): _deep_replace(value, replacements, sorted_keys)  # type: ignore
             for key, value in data.items()  # type: ignore
         }
     elif _type is list:
-        return [deep_replace(item, replacements) for item in data]  # type: ignore
+        return [_deep_replace(item, replacements, sorted_keys) for item in data]  # type: ignore
     elif _type is str:
-        for old, new in replacements.items():
-            data = data.replace(old, new)  # type: ignore
+        for old in sorted_keys:
+            data = data.replace(old, replacements[old])  # type: ignore
         return data  # type: ignore
     else:
         # Some other type we don't know how to handle, return as is
@@ -181,6 +194,9 @@ class CustomBuildDirectives:
                 logging.warning(f"Malformed build script output line (no '='): {line}")
                 continue
             if key in ignored:
+                continue
+            if not value:
+                logging.warning(f"Empty value for build script directive {key}: {line}")
                 continue
             if key == "rustc-cfg":
                 self.rustc_flags.append(("--cfg", value))
@@ -322,9 +338,16 @@ def patch(build_plan_path: str, replacements: dict[str, str]) -> None:
 
         args = inv.get("args", [])
         new_args: list[str] = []
+        skip_next = False
         for arg in args:
-            if arg.startswith("--diagnostic-width"):
-                # drop diagnostic-width arg
+            if skip_next:
+                skip_next = False
+                continue
+            if arg == "--diagnostic-width":
+                # two-arg form: drop the value too
+                skip_next = True
+                continue
+            if arg.startswith("--diagnostic-width="):
                 continue
             new_args.append(arg)
         inv["args"] = new_args
@@ -335,8 +358,18 @@ def patch(build_plan_path: str, replacements: dict[str, str]) -> None:
         invocations[i] = inv
     build_plan["invocations"] = invocations
 
-    with open(build_plan_path, "w") as f:
-        json.dump(build_plan, f, indent=4)
+    # Atomic write: build the new file alongside the target, then rename so
+    # an interrupted patch never leaves a corrupted plan behind.
+    target_dir = os.path.dirname(os.path.abspath(build_plan_path)) or "."
+    fd, tmp_path = tempfile.mkstemp(prefix=".nqc-patch-", dir=target_dir)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(build_plan, f, indent=4)
+        os.replace(tmp_path, build_plan_path)
+    except BaseException:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
 
     logging.info(f"Patched build plan saved to {build_plan_path}")
 
