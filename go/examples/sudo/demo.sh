@@ -3,7 +3,7 @@
 #
 # sudo-rs compilation demo using the go version of not-quite-cargo.
 #
-# Two stages, both running rust:1.84 under docker:
+# Two stages, both running ubuntu/rust:1.75-24.04_stable under docker:
 #   1. PLANNER  -- has cargo + rustc. clones sudo-rs, generates and patches
 #                  build_plan.json. network ON during clone+fetch.
 #   2. RUNNER   -- same image but cargo stripped from PATH, network OFF.
@@ -15,7 +15,7 @@
 set -e
 
 # top-level configuration
-DEMO_IMAGE="nqc-sudo-demo:1.84"
+DEMO_IMAGE="nqc-sudo-demo:1.75-24.04"
 SUDO_RS_REPO="https://github.com/trifectatechfoundation/sudo-rs.git"
 SUDO_RS_REF="${SUDO_RS_REF:-v0.2.3}"
 DOCKER="${DOCKER:-docker}"
@@ -77,7 +77,7 @@ function _build_image() {
         _info "demo image ${DEMO_IMAGE} already built (delete to rebuild)"
         return
     fi
-    _info "building demo image ${DEMO_IMAGE} (rust:1.84 + libpam0g-dev)"
+    _info "building demo image ${DEMO_IMAGE} (ubuntu/rust:1.75-24.04 + libpam0g-dev)"
     "${DOCKER}" build \
         --platform=linux/"${arch}" \
         -t "${DEMO_IMAGE}" \
@@ -161,7 +161,7 @@ function _runner_run() {
 
 function _prove_run() {
     local arch="$1"
-    _info "prove: drop built sudo into ubuntu:26.04, run 'sudo whoami'"
+    _info "prove: drop built sudo into ubuntu:24.04, run 'sudo whoami'"
     # Fresh image (no rust toolchain). Network off -- proves the binary
     # carries its own runtime needs. install sets the setuid bit; minimal
     # /etc/sudoers + /etc/pam.d/sudo let the binary actually elevate.
@@ -170,7 +170,7 @@ function _prove_run() {
         --network=none \
         --volume "${SUDO_RS_DIR}/target":/sudo-target:ro \
         ${_NO_COLOR_FLAG} \
-        ubuntu:26.04 \
+        ubuntu:24.04 \
         bash -c '
             set -e
             BIN=$(find /sudo-target -name "sudo-*" -type f -executable | head -n1)
