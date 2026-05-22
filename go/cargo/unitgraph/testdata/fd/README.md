@@ -16,11 +16,16 @@ both fixtures plus `rustc --print cfg` in one pass.
 
 ## files
 
-- `ug.json` -- cargo's `--unit-graph` output. lower's input.
+- `unit-graph.json` -- cargo's `--unit-graph` output. lower's input.
 - `build-plan.json` -- cargo's `--build-plan` output. the ground-truth
   invocation list we compare lower's output against.
-- `host-cfg.txt` -- `rustc --print cfg` for the container's host (linux,
+- `cfg.txt` -- `rustc --print cfg` for the container's host (linux,
   arch matching the capture machine). feeds lower's `--cfg` flag.
+
+both JSON files are passed through `jq .` for pretty-printing if `jq`
+is on the host's PATH; if not the capture leaves them as cargo emitted
+them (single-line JSON) -- still valid input for the test, just less
+readable when diffing.
 
 paths in the JSON files are container-internal (`/tmp/fd`,
 `/tmp/cargo-home`, the image's rustc path) -- stable across captures by

@@ -28,9 +28,9 @@ const (
 // running the (docker-heavy) capture pipeline.
 func TestFixture_FdLowering(t *testing.T) {
 	dir := filepath.Join("testdata", "fd")
-	ugPath := filepath.Join(dir, "ug.json")
+	ugPath := filepath.Join(dir, "unit-graph.json")
 	bpPath := filepath.Join(dir, "build-plan.json")
-	cfgPath := filepath.Join(dir, "host-cfg.txt")
+	cfgPath := filepath.Join(dir, "cfg.txt")
 
 	if _, err := os.Stat(ugPath); os.IsNotExist(err) {
 		t.Skipf("fd fixture not present (run testdata/fd/capture.sh to populate)")
