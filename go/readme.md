@@ -53,8 +53,8 @@ via the `lower` subcommand. correctness is best-effort; see
 known limitations.
 
 ```
-cargo build -Z unstable-options --unit-graph > ug.json
-./bin/not-quite-cargo build --os linux --arch aarch64 ug.json > build_plan.json
+cargo build -Z unstable-options --unit-graph > unit-graph.json
+./bin/not-quite-cargo build --os linux --arch aarch64 unit-graph.json > build_plan.json
 ./bin/not-quite-cargo patch build_plan.json
 ./bin/not-quite-cargo run build_plan.json
 ```
