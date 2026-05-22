@@ -25,10 +25,18 @@ type PathInputs struct {
 	// "release". Cargo derives this from `profile.name` with renames
 	// (the "dev" profile lands under target/debug).
 	ProfileDir string
-	// Platform is the target triple, or empty for host builds.
-	Platform  string
-	CrateName string
-	Hash      string
+	// Platform drives the target/<triple>/ subdirectory: non-empty for
+	// cross-compile target units, empty for host units (proc macros,
+	// build scripts, plus everything in a non-cross build).
+	Platform string
+	// ExtPlatform drives only the file-extension decision (`.dylib` on
+	// darwin, `.dll` on windows, `.so` elsewhere) -- proc-macros are
+	// host units with empty Platform but need the correct host
+	// extension, so the orchestrator passes the resolved host triple
+	// here when Platform is empty.
+	ExtPlatform string
+	CrateName   string
+	Hash        string
 	// TargetKinds is the unit's `target.kind` field; first known kind
 	// determines the layout. Recognised: "lib", "rlib", "bin",
 	// "proc-macro", "cdylib", "staticlib", "custom-build".
@@ -57,14 +65,14 @@ func OutputPathsFor(in PathInputs) OutputPaths {
 			}
 		case "bin":
 			if op.Primary == "" {
-				op.Primary = filepath.Join(base, stem+binExt(in.Platform))
+				op.Primary = filepath.Join(base, stem+binExt(in.ExtPlatform))
 			}
 		case "proc-macro":
 			if op.Primary == "" {
-				op.Primary = filepath.Join(base, "lib"+stem+dylibExt(in.Platform))
+				op.Primary = filepath.Join(base, "lib"+stem+dylibExt(in.ExtPlatform))
 			}
 		case "cdylib":
-			op.Extras = append(op.Extras, filepath.Join(base, "lib"+stem+dylibExt(in.Platform)))
+			op.Extras = append(op.Extras, filepath.Join(base, "lib"+stem+dylibExt(in.ExtPlatform)))
 		case "staticlib":
 			op.Extras = append(op.Extras, filepath.Join(base, "lib"+stem+".a"))
 		case "custom-build":
@@ -74,7 +82,7 @@ func OutputPathsFor(in PathInputs) OutputPaths {
 			// on unix). The crate name itself is the unit's target.name
 			// canonicalised (typically "build_script_build").
 			if op.Primary == "" {
-				op.Primary = filepath.Join(base, stem+binExt(in.Platform))
+				op.Primary = filepath.Join(base, stem+binExt(in.ExtPlatform))
 			}
 		}
 	}

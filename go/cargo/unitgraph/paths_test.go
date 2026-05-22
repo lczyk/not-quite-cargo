@@ -35,6 +35,7 @@ func TestOutputPathsFor_BinWindows(t *testing.T) {
 		ProjectRoot: "/proj",
 		ProfileDir:  "debug",
 		Platform:    "x86_64-pc-windows-msvc",
+		ExtPlatform: "x86_64-pc-windows-msvc",
 		CrateName:   "mybin",
 		Hash:        "0123456789abcdef",
 		TargetKinds: []string{"bin"},
@@ -43,9 +44,12 @@ func TestOutputPathsFor_BinWindows(t *testing.T) {
 }
 
 func TestOutputPathsFor_ProcMacroLinux(t *testing.T) {
+	// Proc macro on a host = linux build: Platform empty (host layout),
+	// ExtPlatform = linux triple drives the .so extension.
 	got := OutputPathsFor(PathInputs{
 		ProjectRoot: "/proj",
 		ProfileDir:  "debug",
+		ExtPlatform: "x86_64-unknown-linux-gnu",
 		CrateName:   "serde_derive",
 		Hash:        "1111222233334444",
 		TargetKinds: []string{"proc-macro"},
@@ -54,15 +58,17 @@ func TestOutputPathsFor_ProcMacroLinux(t *testing.T) {
 }
 
 func TestOutputPathsFor_ProcMacroDarwin(t *testing.T) {
+	// Regression: proc macro is a host unit (Platform=""), but the
+	// extension must still be .dylib on darwin. Driven by ExtPlatform.
 	got := OutputPathsFor(PathInputs{
 		ProjectRoot: "/proj",
 		ProfileDir:  "debug",
-		Platform:    "aarch64-apple-darwin",
+		ExtPlatform: "aarch64-apple-darwin",
 		CrateName:   "serde_derive",
 		Hash:        "1111222233334444",
 		TargetKinds: []string{"proc-macro"},
 	})
-	assert.Equal(t, got.Primary, "/proj/target/aarch64-apple-darwin/debug/deps/libserde_derive-1111222233334444.dylib")
+	assert.Equal(t, got.Primary, "/proj/target/debug/deps/libserde_derive-1111222233334444.dylib")
 }
 
 func TestOutputPathsFor_Cdylib(t *testing.T) {

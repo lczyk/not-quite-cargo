@@ -172,6 +172,26 @@ func assertAdjacent(t *testing.T, args []string, a, b string) {
 	t.Errorf("expected adjacent (%q, %q) in args, got: %v", a, b, args)
 }
 
+func TestRustcArgs_CapLints(t *testing.T) {
+	// Non-primary (registry) packages get --cap-lints warn so their
+	// #![deny(...)] settings don't error out the local build.
+	u := sampleUnit()
+	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p", CapLints: true})
+	assert.NoError(t, err)
+	assertAdjacent(t, args, "--cap-lints", "warn")
+}
+
+func TestRustcArgs_NoCapLintsForPrimary(t *testing.T) {
+	u := sampleUnit()
+	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p", CapLints: false})
+	assert.NoError(t, err)
+	for i, a := range args {
+		if a == "--cap-lints" {
+			t.Errorf("primary package must not get --cap-lints, found at %d in %v", i, args)
+		}
+	}
+}
+
 func TestRustcArgs_NilUnit(t *testing.T) {
 	_, err := RustcArgs(ArgsInputs{})
 	assert.Error(t, err, "nil unit")

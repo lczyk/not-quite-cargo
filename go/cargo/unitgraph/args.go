@@ -21,6 +21,12 @@ type ArgsInputs struct {
 	// DepsDir is the `target/<profile>/deps` directory dependents need
 	// for `-L dependency=`. Same dir as Out.Primary's parent.
 	DepsDir string
+
+	// CapLints, when true, adds `--cap-lints warn` to downgrade the
+	// unit's lints to warnings -- cargo does this for non-primary
+	// packages (registry / git deps) so a dep's `#![deny(...)]`
+	// settings don't fail the local build.
+	CapLints bool
 }
 
 // RustcArgs derives the literal rustc command line for a single unit.
@@ -63,6 +69,13 @@ func RustcArgs(in ArgsInputs) ([]string, error) {
 	sort.Strings(features)
 	for _, f := range features {
 		args = append(args, "--cfg", fmt.Sprintf(`feature="%s"`, f))
+	}
+
+	// --cap-lints warn so dep crates' #![deny(...)] settings don't fail
+	// the local build. Cargo applies this to non-primary packages
+	// (registry / git deps); the caller decides via in.CapLints.
+	if in.CapLints {
+		args = append(args, "--cap-lints", "warn")
 	}
 
 	// Metadata + extra-filename get the same hash so dependents can find

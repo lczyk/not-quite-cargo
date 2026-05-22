@@ -149,6 +149,8 @@ type unitDerived struct {
 	platform             string // resolved (HostTriple if Unit.IsHost)
 	depsDir              string // target/<profile>/[<triple>/]deps
 	isCustomBuildCompile bool   // build.rs compile step (vs run-custom-build / regular compile)
+	isRunCustomBuild     bool   // running the previously-compiled build.rs
+	outDir               string // for run-custom-build units, the OUT_DIR they write into
 }
 
 func preDerive(u *Unit, opt LowerOptions) (unitDerived, string, error) {
@@ -188,13 +190,31 @@ func preDerive(u *Unit, opt LowerOptions) (unitDerived, string, error) {
 		// Host units (proc macros, build scripts) land under the host
 		// deps dir, not the target-triple dir, even when the wider
 		// build is cross-compiling. Mirror cargo's behaviour.
-		Platform:    platformDir(u, opt.HostTriple),
+		Platform: platformDir(u, opt.HostTriple),
+		// ExtPlatform drives the file extension; for host units this is
+		// the resolved host triple so proc macros get .dylib on darwin,
+		// .dll on windows, .so elsewhere.
+		ExtPlatform: platform,
 		CrateName:   underscore(u.Target.Name),
 		Hash:        hash,
 		TargetKinds: u.Target.Kind,
 	})
 
 	depsDir := filepath.Dir(out.DepInfo)
+
+	// For run-custom-build units, pre-compute OUT_DIR so subsequent
+	// compile units of the same package can pick it up. Mirrors cargo's
+	// `target/<profile>/build/<pkg>-<hash>/out` layout.
+	var outDir string
+	isRunCustom := u.Mode == "run-custom-build"
+	if isRunCustom {
+		buildBase := filepath.Join(opt.ProjectRoot, "target")
+		if u.Platform != nil && *u.Platform != "" && *u.Platform != opt.HostTriple {
+			buildBase = filepath.Join(buildBase, *u.Platform)
+		}
+		buildBase = filepath.Join(buildBase, profileDir)
+		outDir = filepath.Join(buildBase, "build", pkg.Name+"-"+hash, "out")
+	}
 
 	return unitDerived{
 		pkgID:                id,
@@ -204,6 +224,8 @@ func preDerive(u *Unit, opt LowerOptions) (unitDerived, string, error) {
 		platform:             platform,
 		depsDir:              depsDir,
 		isCustomBuildCompile: u.IsCustomBuild() && u.Mode == "build",
+		isRunCustomBuild:     isRunCustom,
+		outDir:               outDir,
 	}, warning, nil
 }
 
@@ -237,11 +259,12 @@ func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions) 
 	// Default: rustc invocation (build, test, check, etc).
 	externs := resolveExterns(u, derived)
 	args, err := RustcArgs(ArgsInputs{
-		Unit:    u,
-		Hash:    d.hash,
-		Out:     d.outputs,
-		Externs: externs,
-		DepsDir: d.depsDir,
+		Unit:     u,
+		Hash:     d.hash,
+		Out:      d.outputs,
+		Externs:  externs,
+		DepsDir:  d.depsDir,
+		CapLints: !isPrimaryPkg(u.PkgID),
 	})
 	if err != nil {
 		return Invocation{}, err
@@ -259,6 +282,19 @@ func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions) 
 	)
 	if isBinKind(u.Target.Kind) {
 		env["CARGO_BIN_NAME"] = u.Target.Name
+	}
+
+	// OUT_DIR: if this unit depends on a run-custom-build for its own
+	// package, cargo wires that build script's OUT_DIR into this
+	// invocation's env so source code can `include!(env!("OUT_DIR"))`.
+	for _, e := range u.Dependencies {
+		if e.Index < 0 || e.Index >= len(derived) {
+			continue
+		}
+		if derived[e.Index].isRunCustomBuild && derived[e.Index].outDir != "" {
+			env["OUT_DIR"] = derived[e.Index].outDir
+			break
+		}
 	}
 
 	outputs := []string{d.outputs.DepInfo}
@@ -288,20 +324,19 @@ func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, op
 	// The build script binary was produced by a sibling "build"-mode
 	// custom-build unit -- find it via the deps edge.
 	var program string
-	var outDir string
 	for _, depIdx := range deps {
 		if depIdx < 0 || depIdx >= len(derived) {
 			continue
 		}
 		if depIsCompileBuildScript(&derived[depIdx]) {
 			program = derived[depIdx].outputs.Primary
-			outDir = filepath.Join(filepath.Dir(program), "..", "build", d.pkg.Name+"-"+d.hash, "out")
 			break
 		}
 	}
 	if program == "" {
 		return Invocation{}, fmt.Errorf("run-custom-build: cannot resolve build script binary among deps")
 	}
+	outDir := d.outDir
 
 	env := MergeEnv(
 		PkgEnv(d.pkg),
@@ -383,13 +418,17 @@ func primaryFlag(u *Unit, derived []unitDerived) string {
 	// workspace member, "" otherwise. Unit-graph doesn't expose the
 	// workspace membership directly; for MVP, treat path+ units as
 	// primary (the user's workspace) and others as non-primary.
-	if u.PkgID == "" {
-		return ""
-	}
-	if len(u.PkgID) >= 5 && u.PkgID[:5] == "path+" {
+	if isPrimaryPkg(u.PkgID) {
 		return "1"
 	}
 	return ""
+}
+
+// isPrimaryPkg reports whether a pkg_id belongs to the local workspace
+// (path+) or a fetched dep (registry+ / git+). Drives both
+// CARGO_PRIMARY_PACKAGE and --cap-lints decisions.
+func isPrimaryPkg(pkgID string) bool {
+	return len(pkgID) >= 5 && pkgID[:5] == "path+"
 }
 
 func manifestDirOf(d unitDerived, opt LowerOptions) string {
