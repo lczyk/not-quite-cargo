@@ -8,10 +8,11 @@
 #   build-plan.json  -- cargo build -Z unstable-options --build-plan
 #   host-cfg.txt     -- rustc --print cfg (host = container's linux/<arch>)
 #
-# Container-side absolute paths (`/fd`, `/cargo-home`) are substituted on
-# the host for the standard `{{PROJECT_ROOT}}` / `{{CARGO_HOME}}`
-# placeholders so the fixtures are portable across hosts. The nqc binary
-# itself is *not* used inside the container -- only cargo + rustc + sed.
+# Paths inside the JSON files are container-internal (/tmp/fd,
+# /cargo-home, the image's rustc path); they're stable across captures
+# and the test wires up matching placeholders, so no host-side
+# anonymisation step is needed. The nqc binary itself is not used inside
+# the container -- only cargo + rustc.
 set -e
 
 FD_REF="${FD_REF:-v10.2.0}"
@@ -59,22 +60,11 @@ function main() {
             cd /tmp/fd
             cargo fetch -q
             cargo build -j1 -Z unstable-options --unit-graph \
-                > /out/ug.raw.json
+                > /out/ug.json
             cargo build -j1 -Z unstable-options --build-plan \
-                > /out/build-plan.raw.json
+                > /out/build-plan.json
             rustc --print cfg > /out/host-cfg.txt
         '
-
-    _info "anonymising planner paths"
-    # /fd and /cargo-home are fixed container-side absolute paths;
-    # rewrite them to the standard nqc placeholders so the fixtures
-    # work regardless of where the capture ran.
-    for raw in "${SCRIPT_DIR}/ug.raw.json" "${SCRIPT_DIR}/build-plan.raw.json"; do
-        sed -e 's|/tmp/fd|{{PROJECT_ROOT}}|g' \
-            -e 's|/cargo-home|{{CARGO_HOME}}|g' \
-            "${raw}" > "${raw%.raw.json}.json"
-        rm "${raw}"
-    done
 
     _info "captured into ${SCRIPT_DIR}:"
     ls -lh "${SCRIPT_DIR}/ug.json" "${SCRIPT_DIR}/build-plan.json" "${SCRIPT_DIR}/host-cfg.txt"

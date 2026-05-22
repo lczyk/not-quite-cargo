@@ -22,9 +22,11 @@ both fixtures plus `rustc --print cfg` in one pass.
 - `host-cfg.txt` -- `rustc --print cfg` for the container's host (linux,
   arch matching the capture machine). feeds lower's `--cfg` flag.
 
-paths in the JSON files are anonymised: container-side `/tmp/fd` and
-`/cargo-home` become `{{PROJECT_ROOT}}` and `{{CARGO_HOME}}` so the
-fixtures stay portable.
+paths in the JSON files are container-internal (`/tmp/fd`,
+`/cargo-home`, the image's rustc path) -- stable across captures by
+construction, no host-side anonymisation needed. the lowering test
+configures matching `ProjectRoot` / `CargoHome` values so the paths
+line up.
 
 ## refresh
 
@@ -34,10 +36,10 @@ cd go/cargo/unitgraph/testdata/fd
 ```
 
 requires docker (or set `DOCKER=podman`). pulls `rust:1.84`, clones fd
-at the pinned ref, runs both `-Z` flags + `rustc --print cfg`, sed-
-anonymises the path-bearing JSON files. about 3 minutes on a warm
-image. nqc itself is **not** invoked inside the container -- the
-fixture pipeline is cargo + rustc + sed only.
+at the pinned ref, runs both `-Z` flags + `rustc --print cfg`, drops
+all three files via a single mount. about 3 minutes on a warm image.
+nqc itself is **not** invoked inside the container -- the fixture
+pipeline is cargo + rustc only.
 
 if `fd` changes its dep graph in a way that breaks the golden, bump
 the pinned ref above + re-run the capture.

@@ -1,6 +1,7 @@
 package unitgraph
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,48 +9,54 @@ import (
 	"github.com/lczyk/assert"
 )
 
+// Container-side paths the capture.sh script bakes into the JSON
+// fixtures. capture.sh runs inside rust:1.84 with fd cloned at /tmp/fd
+// and CARGO_HOME=/cargo-home, so every absolute path in ug.json and
+// build-plan.json references one of these prefixes.
+const (
+	fdFixtureProjectRoot = "/tmp/fd"
+	fdFixtureCargoHome   = "/cargo-home"
+)
+
 // TestFixture_FdLowering loads the captured fd unit-graph fixture,
 // lowers it, and sanity-checks the result.
 //
-// The fixture (`testdata/fd/ug.json`) is the output of
-// `cargo build -Z unstable-options --unit-graph` against fd v10.2.0,
-// captured locally then path-anonymised via the same `{{PROJECT_ROOT}}`
-// / `{{CARGO_HOME}}` / `{{RUSTC}}` placeholders that nqc patch emits.
-// See testdata/fd/README.md for provenance and refresh instructions.
-//
-// We don't have a ground-truth build-plan to diff against (cargo 1.93+
-// removed --build-plan, and the host doesn't have an older cargo); the
-// test focuses on structural properties any correct lowering must hold.
-// A full cargo --build-plan ground truth can be captured by running
-// testdata/fd/capture.sh in rust:1.84, which will land the second
-// fixture file used by future, stricter, comparison tests.
+// The fixture files (`testdata/fd/{ug,build-plan,host-cfg.txt}`) are
+// produced by `testdata/fd/capture.sh` against rust:1.84 -- see the
+// README in that dir for provenance. The test is skipped when the
+// fixture isn't present so contributors can land code changes without
+// running the (docker-heavy) capture pipeline.
 func TestFixture_FdLowering(t *testing.T) {
-	ugPath := filepath.Join("testdata", "fd", "ug.json")
+	dir := filepath.Join("testdata", "fd")
+	ugPath := filepath.Join(dir, "ug.json")
+	bpPath := filepath.Join(dir, "build-plan.json")
+	cfgPath := filepath.Join(dir, "host-cfg.txt")
+
 	if _, err := os.Stat(ugPath); os.IsNotExist(err) {
-		t.Skipf("fd fixture not present at %s", ugPath)
+		t.Skipf("fd fixture not present (run testdata/fd/capture.sh to populate)")
 	}
 
 	ug, err := LoadUnitGraph(ugPath)
 	assert.NoError(t, err)
 
-	cfg, err := ParseCfg(fdHostCfg)
+	cfgBytes, err := os.ReadFile(cfgPath)
+	assert.NoError(t, err)
+	cfg, err := ParseCfg(string(cfgBytes))
 	assert.NoError(t, err)
 
 	got, err := Lower(ug, LowerOptions{
-		HostTriple:         "aarch64-apple-darwin",
+		// The capture container is linux/<host-arch>. We pass a generic
+		// linux triple here; the lowering uses HostTriple only for the
+		// `platform: null` units, none of which need an exact match.
+		HostTriple:         "aarch64-unknown-linux-gnu",
 		Cfg:                cfg,
-		CargoHome:          "{{CARGO_HOME}}",
-		ProjectRoot:        "{{PROJECT_ROOT}}",
-		RustcPath:          "{{RUSTC}}",
-		SkipManifestErrors: true, // anonymised paths -> no manifests on disk
+		CargoHome:          fdFixtureCargoHome,
+		ProjectRoot:        fdFixtureProjectRoot,
+		SkipManifestErrors: true,
 	})
 	assert.NoError(t, err)
 
-	// fd v10.2.0 at the captured commit had 77 units (see CHANGELOG for
-	// the fixture). If the dep tree changes the fixture should be
-	// refreshed via testdata/fd/capture.sh.
 	assert.Equal(t, len(got.Invocations), len(ug.Units), "one invocation per unit")
-	assert.Equal(t, len(got.Invocations), 77, "expected 77 units for the pinned fd v10.2.0 fixture")
 
 	// Every invocation must have a non-empty package_name (the manifest
 	// fallback should at minimum derive name from pkg_id).
@@ -84,8 +91,6 @@ func TestFixture_FdLowering(t *testing.T) {
 	fdIdx := -1
 	for i, inv := range got.Invocations {
 		if inv.PackageName == "fd-find" && inv.CompileMode == "build" {
-			// Pick the unit whose target is "fd" (the bin), not
-			// "build_script_build".
 			if len(inv.TargetKind) > 0 && inv.TargetKind[0] == "bin" {
 				fdIdx = i
 				break
@@ -98,16 +103,14 @@ func TestFixture_FdLowering(t *testing.T) {
 		assert.Equal(t, fd.Env["CARGO_BIN_NAME"], "fd")
 		assert.Equal(t, fd.Env["CARGO_CRATE_NAME"], "fd")
 		assert.Equal(t, fd.Env["CARGO_PRIMARY_PACKAGE"], "1")
-		// Args must contain --crate-name fd, --edition=2021, no --cap-lints.
 		var sawEdition, sawCapLints bool
-		for i, a := range fd.Args {
+		for _, a := range fd.Args {
 			if a == "--edition=2021" {
 				sawEdition = true
 			}
 			if a == "--cap-lints" {
 				sawCapLints = true
 			}
-			_ = i
 		}
 		assert.That(t, sawEdition, "fd unit must have --edition=2021")
 		assert.That(t, !sawCapLints, "fd-find is primary; should not get --cap-lints")
@@ -132,27 +135,18 @@ func TestFixture_FdLowering(t *testing.T) {
 		assert.That(t, sawCapLints, "clap_derive is non-primary; should get --cap-lints")
 		break
 	}
-}
 
-// fdHostCfg is a representative rustc --print cfg output for aarch64
-// linux (the demo's target). embedded inline so the test stays hermetic.
-const fdHostCfg = `debug_assertions
-panic="unwind"
-target_arch="aarch64"
-target_endian="little"
-target_env="gnu"
-target_family="unix"
-target_feature="aes"
-target_feature="crc"
-target_feature="neon"
-target_has_atomic
-target_has_atomic="16"
-target_has_atomic="32"
-target_has_atomic="64"
-target_has_atomic="8"
-target_has_atomic="ptr"
-target_os="linux"
-target_pointer_width="64"
-target_vendor="unknown"
-unix
-`
+	// Cross-check against the cargo-emitted build-plan ground truth, if
+	// present. The capture.sh script always produces both files; older
+	// fixtures might only carry ug.json.
+	if _, err := os.Stat(bpPath); err == nil {
+		bpData, err := os.ReadFile(bpPath)
+		assert.NoError(t, err)
+		var bp struct {
+			Invocations []map[string]any `json:"invocations"`
+		}
+		assert.NoError(t, json.Unmarshal(bpData, &bp))
+		assert.Equal(t, len(got.Invocations), len(bp.Invocations),
+			"lowered invocation count should match cargo's --build-plan ground truth")
+	}
+}
