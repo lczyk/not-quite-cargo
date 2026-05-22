@@ -121,21 +121,36 @@ func TestLower_TinyGraph(t *testing.T) {
 
 func TestLower_RejectsBadVersion(t *testing.T) {
 	ug := &UnitGraph{Version: 99}
-	_, err := Lower(ug, LowerOptions{HostTriple: "x", Target: Target{OS: "linux", Arch: "x86_64"}})
+	_, err := Lower(ug, LowerOptions{
+		Target:      Target{OS: "linux", Arch: "x86_64"},
+		ProjectRoot: "/proj",
+		RustcPath:   "rustc",
+	})
 	// Lower doesn't validate version itself (LoadUnitGraph does); it
 	// just processes whatever it's given. The empty Units slice means
 	// no error -- adjust expectation.
 	assert.NoError(t, err)
 }
 
-func TestLower_RequiresHostTriple(t *testing.T) {
+func TestLower_RequiresTargetOSArch(t *testing.T) {
 	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{})
-	assert.Error(t, err, "HostTriple or Target is required")
+	assert.Error(t, err, "Target.OS and Target.Arch are required")
 }
 
-func TestLower_RequiresTarget(t *testing.T) {
-	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{HostTriple: "x"})
-	assert.Error(t, err, "Target.OS and Target.Arch are required")
+func TestLower_RequiresProjectRoot(t *testing.T) {
+	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{
+		Target:    Target{OS: "linux", Arch: "x86_64"},
+		RustcPath: "rustc",
+	})
+	assert.Error(t, err, "ProjectRoot is required")
+}
+
+func TestLower_RequiresRustcPath(t *testing.T) {
+	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{
+		Target:      Target{OS: "linux", Arch: "x86_64"},
+		ProjectRoot: "/proj",
+	})
+	assert.Error(t, err, "RustcPath is required")
 }
 
 func TestLoadUnitGraph_RoundTrip(t *testing.T) {

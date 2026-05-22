@@ -86,17 +86,17 @@ func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
 	if ug == nil {
 		return nil, fmt.Errorf("lower: nil unit-graph")
 	}
-	if opt.HostTriple == "" {
-		opt.HostTriple = opt.Target.Triple()
-	}
-	if opt.HostTriple == "" {
-		return nil, fmt.Errorf("lower: HostTriple or Target is required")
-	}
 	if opt.Target.OS == "" || opt.Target.Arch == "" {
 		return nil, fmt.Errorf("lower: Target.OS and Target.Arch are required")
 	}
+	if opt.HostTriple == "" {
+		opt.HostTriple = opt.Target.Triple()
+	}
+	if opt.ProjectRoot == "" {
+		return nil, fmt.Errorf("lower: ProjectRoot is required")
+	}
 	if opt.RustcPath == "" {
-		opt.RustcPath = "rustc"
+		return nil, fmt.Errorf("lower: RustcPath is required")
 	}
 
 	out := &LowerOutput{
