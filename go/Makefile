@@ -10,6 +10,7 @@ help:  ## Show this help
 
 .PHONY: generate-version
 generate-version:  ## Generate internal/version/version.go from VERSION + git state
+	mkdir -p ./internal/version
 	go run github.com/lczyk/version/go/cmd/generate-version -out ./internal/version/version.go -pkg version
 
 .PHONY: build
