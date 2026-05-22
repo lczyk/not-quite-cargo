@@ -58,8 +58,8 @@ func RustcArgs(in ArgsInputs) ([]string, error) {
 
 	// Metadata + extra-filename get the same hash so dependents can find
 	// the artefact.
-	args = append(args, fmt.Sprintf("-C metadata=%s", in.Hash))
-	args = append(args, fmt.Sprintf("-C extra-filename=-%s", in.Hash))
+	args = append(args, "-C", "metadata="+in.Hash)
+	args = append(args, "-C", "extra-filename=-"+in.Hash)
 
 	// Output dir.
 	if in.DepsDir != "" {
@@ -109,53 +109,59 @@ func underscore(s string) string {
 }
 
 // profileFlags translates a unit's profile into the corresponding rustc
-// codegen flags.
+// codegen flags. Each option is emitted as a separate (-C, key=value)
+// pair so rustc parses them as independent args -- single-string
+// "-C key=value" entries would be passed through as one argv element
+// and rustc rejects the embedded space.
 func profileFlags(p UnitProfile) []string {
 	args := []string{}
 	if p.OptLevel != "" && p.OptLevel != "0" {
-		args = append(args, fmt.Sprintf("-C opt-level=%s", p.OptLevel))
+		args = append(args, "-C", "opt-level="+p.OptLevel)
 	}
 	if p.DebugAssertions {
-		args = append(args, "-C debug-assertions=on")
+		args = append(args, "-C", "debug-assertions=on")
 	} else {
-		args = append(args, "-C debug-assertions=off")
+		args = append(args, "-C", "debug-assertions=off")
 	}
 	if p.OverflowChecks {
-		args = append(args, "-C overflow-checks=on")
+		args = append(args, "-C", "overflow-checks=on")
 	} else {
-		args = append(args, "-C overflow-checks=off")
+		args = append(args, "-C", "overflow-checks=off")
 	}
-	if p.Incremental {
-		args = append(args, "-C incremental")
-	}
+	// Incremental is intentionally omitted for now: rustc requires a
+	// directory path (`-C incremental=<dir>`), which cargo computes
+	// per-unit at `<project>/target/<profile>/incremental/<name>-<hash>`.
+	// We currently emit a non-incremental build instead -- correct,
+	// slower. TODO(lczyk): synthesise the dir + pass it through.
+	_ = p.Incremental
 	if p.Rpath {
-		args = append(args, "-C rpath")
+		args = append(args, "-C", "rpath")
 	}
 	if p.Panic != "" {
-		args = append(args, fmt.Sprintf("-C panic=%s", p.Panic))
+		args = append(args, "-C", "panic="+p.Panic)
 	}
 	// Debug info: number or "line-tables-only"
 	switch v := p.Debuginfo.(type) {
 	case float64: // JSON numbers decode as float64 into `any`
 		if int(v) > 0 {
-			args = append(args, fmt.Sprintf("-C debuginfo=%d", int(v)))
+			args = append(args, "-C", fmt.Sprintf("debuginfo=%d", int(v)))
 		}
 	case string:
 		if v != "" {
-			args = append(args, fmt.Sprintf("-C debuginfo=%s", v))
+			args = append(args, "-C", "debuginfo="+v)
 		}
 	}
 	if p.CodegenUnits != nil {
-		args = append(args, fmt.Sprintf("-C codegen-units=%d", *p.CodegenUnits))
+		args = append(args, "-C", fmt.Sprintf("codegen-units=%d", *p.CodegenUnits))
 	}
 	if p.LTO != "" && p.LTO != "false" {
-		args = append(args, fmt.Sprintf("-C lto=%s", p.LTO))
+		args = append(args, "-C", "lto="+p.LTO)
 	}
 	if p.SplitDebuginfo != nil && *p.SplitDebuginfo != "" {
-		args = append(args, fmt.Sprintf("-C split-debuginfo=%s", *p.SplitDebuginfo))
+		args = append(args, "-C", "split-debuginfo="+*p.SplitDebuginfo)
 	}
 	if p.CodegenBackend != nil && *p.CodegenBackend != "" {
-		args = append(args, fmt.Sprintf("-Z codegen-backend=%s", *p.CodegenBackend))
+		args = append(args, "-Z", "codegen-backend="+*p.CodegenBackend)
 	}
 	return args
 }

@@ -64,9 +64,9 @@ func TestRustcArgs_Basic(t *testing.T) {
 	// Crate types.
 	argsContain(t, args, "lib")
 
-	// Metadata + extra-filename hashes.
-	argsContain(t, args, "-C metadata=0123456789abcdef")
-	argsContain(t, args, "-C extra-filename=-0123456789abcdef")
+	// Metadata + extra-filename emitted as two adjacent args.
+	assertAdjacent(t, args, "-C", "metadata=0123456789abcdef")
+	assertAdjacent(t, args, "-C", "extra-filename=-0123456789abcdef")
 
 	// Output dir + dependency search dir.
 	argsContain(t, args, "/proj/target/debug/deps")
@@ -111,12 +111,23 @@ func TestRustcArgs_ProfileReleaseOptLevel(t *testing.T) {
 	u.Profile.Incremental = false
 	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p"})
 	assert.NoError(t, err)
-	argsContain(t, args, "-C opt-level=3")
-	argsContain(t, args, "-C debug-assertions=off")
-	argsContain(t, args, "-C overflow-checks=off")
-	// no incremental flag
-	for _, a := range args {
-		assert.That(t, a != "-C incremental", "release profile should not emit -C incremental")
+	assertAdjacent(t, args, "-C", "opt-level=3")
+	assertAdjacent(t, args, "-C", "debug-assertions=off")
+	assertAdjacent(t, args, "-C", "overflow-checks=off")
+}
+
+func TestRustcArgs_NoIncremental(t *testing.T) {
+	// Regression: rustc rejects bare "-C incremental"; it requires a
+	// path. We deliberately omit the flag (non-incremental builds) until
+	// the orchestrator can synthesise an incremental dir per unit.
+	u := sampleUnit()
+	u.Profile.Incremental = true
+	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p"})
+	assert.NoError(t, err)
+	for i, a := range args {
+		if a == "-C" && i+1 < len(args) && args[i+1] == "incremental" {
+			t.Errorf("must not emit bare -C incremental; rustc rejects it")
+		}
 	}
 }
 
@@ -125,7 +136,7 @@ func TestRustcArgs_DebuginfoString(t *testing.T) {
 	u.Profile.Debuginfo = "line-tables-only"
 	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p"})
 	assert.NoError(t, err)
-	argsContain(t, args, "-C debuginfo=line-tables-only")
+	assertAdjacent(t, args, "-C", "debuginfo=line-tables-only")
 }
 
 func TestRustcArgs_LTOEnabled(t *testing.T) {
@@ -133,7 +144,20 @@ func TestRustcArgs_LTOEnabled(t *testing.T) {
 	u.Profile.LTO = "fat"
 	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p"})
 	assert.NoError(t, err)
-	argsContain(t, args, "-C lto=fat")
+	assertAdjacent(t, args, "-C", "lto=fat")
+}
+
+// assertAdjacent asserts that args contains the pair (a, b) at adjacent
+// positions -- catches the bug where "-C key=value" was being emitted
+// as a single string element (rustc rejects the embedded space).
+func assertAdjacent(t *testing.T, args []string, a, b string) {
+	t.Helper()
+	for i := range args {
+		if args[i] == a && i+1 < len(args) && args[i+1] == b {
+			return
+		}
+	}
+	t.Errorf("expected adjacent (%q, %q) in args, got: %v", a, b, args)
 }
 
 func TestRustcArgs_NilUnit(t *testing.T) {
