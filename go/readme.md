@@ -17,6 +17,8 @@ only one binary.
 - `internal/version/` -- generated version info (gitignored, regenerated via `make build`)
 - `examples/sudo-build-plan/` -- end-to-end demo: compile sudo-rs without cargo on the runner (via cargo `--build-plan`)
 - `examples/sudo-unit-graph/` -- same end-to-end demo, but via cargo `--unit-graph` + experimental `nqc build`
+- `examples/fd-jemalloc/` -- compile fd with default features (pulls jemalloc-sys + autoconf tooling)
+- `examples/fd-no-features/` -- compile fd with `--no-default-features` (minimal, no native build deps)
 
 ## build
 
