@@ -18,13 +18,19 @@ const (
 
 // PkgID is the parsed form of a cargo pkg_id string.
 //
-// cargo's pkg_id format evolved a few times. The current "stable" shape
-// (used by --unit-graph, cargo metadata --format-version=1, etc.) is:
+// cargo's pkg_id format evolved a few times. Two shapes are recognised:
 //
-//	<source-kind>+<source-url>#<name>@<version>
+//  1. Modern (cargo ~1.78+):
+//     <source-kind>+<source-url>#<name>@<version>
+//     `<name>@` is omitted when name == basename(source url).
+//     Variant with `#<version>` (no name@) also exists -- treated like (1).
 //
-// where the `<name>@` prefix is omitted when name == basename(source url).
-// Older shapes use `#<version>` (no name@). We accept both.
+//  2. Legacy (cargo through ~1.77, still emitted by --build-plan and
+//     --unit-graph in cargo 1.84.x):
+//     <name> <version> (<source-kind>+<source-url>)
+//
+// The capture image (rust:1.84) emits the legacy form; ParsePkgID
+// auto-detects by the leading char (scheme prefix vs identifier).
 type PkgID struct {
 	Raw       string
 	Kind      PkgIDKind
@@ -33,23 +39,36 @@ type PkgID struct {
 	Version   string
 }
 
-// ParsePkgID decodes a cargo pkg_id string.
+// ParsePkgID decodes a cargo pkg_id string in either the modern or
+// legacy shape (see PkgID doc).
 func ParsePkgID(raw string) (PkgID, error) {
+	if looksLegacy(raw) {
+		return parseLegacyPkgID(raw)
+	}
+	return parseModernPkgID(raw)
+}
+
+// looksLegacy returns true for the `<name> <version> (<source>)` shape.
+// Modern pkg_ids start with `path+`, `registry+` or `git+`; legacy ones
+// start with the crate name.
+func looksLegacy(raw string) bool {
+	for _, prefix := range []string{"path+", "registry+", "git+"} {
+		if strings.HasPrefix(raw, prefix) {
+			return false
+		}
+	}
+	return strings.Contains(raw, " (")
+}
+
+func parseModernPkgID(raw string) (PkgID, error) {
 	prefix, rest, ok := strings.Cut(raw, "+")
 	if !ok {
 		return PkgID{}, fmt.Errorf("pkg_id %q: missing source-kind prefix", raw)
 	}
 
-	var kind PkgIDKind
-	switch prefix {
-	case "path":
-		kind = PkgIDPath
-	case "registry":
-		kind = PkgIDRegistry
-	case "git":
-		kind = PkgIDGit
-	default:
-		return PkgID{}, fmt.Errorf("pkg_id %q: unknown source kind %q", raw, prefix)
+	kind, err := kindFromPrefix(prefix, raw)
+	if err != nil {
+		return PkgID{}, err
 	}
 
 	source, frag, ok := strings.Cut(rest, "#")
@@ -66,12 +85,65 @@ func ParsePkgID(raw string) (PkgID, error) {
 		id.Version = version
 	} else {
 		id.Version = frag
-		// Derive name from source basename.
 		if u, err := url.Parse(source); err == nil && u.Path != "" {
 			id.Name = filepath.Base(u.Path)
 		}
 	}
 	return id, nil
+}
+
+// parseLegacyPkgID handles `<name> <version> (<source-kind>+<source-url>)`.
+func parseLegacyPkgID(raw string) (PkgID, error) {
+	// Walk to the opening paren of the source block; everything before
+	// it is `<name> <version>` (space-separated).
+	parenIdx := strings.Index(raw, " (")
+	if parenIdx < 0 || !strings.HasSuffix(raw, ")") {
+		return PkgID{}, fmt.Errorf("pkg_id %q: legacy form missing ' (...)' source", raw)
+	}
+	head := raw[:parenIdx]
+	source := raw[parenIdx+2 : len(raw)-1] // strip " (" and trailing ")"
+
+	parts := strings.SplitN(head, " ", 2)
+	if len(parts) != 2 {
+		return PkgID{}, fmt.Errorf("pkg_id %q: legacy head should be '<name> <version>'", raw)
+	}
+
+	prefix, sourceURL, ok := strings.Cut(source, "+")
+	if !ok {
+		return PkgID{}, fmt.Errorf("pkg_id %q: legacy source missing kind prefix", raw)
+	}
+	kind, err := kindFromPrefix(prefix, raw)
+	if err != nil {
+		return PkgID{}, err
+	}
+
+	// Legacy registry / git sources sometimes include a `#<commit-sha>`
+	// trailer on the URL (git only); strip for the SourceURL field but
+	// keep it in Raw.
+	if i := strings.Index(sourceURL, "#"); i >= 0 {
+		sourceURL = sourceURL[:i]
+	}
+
+	return PkgID{
+		Raw:       raw,
+		Kind:      kind,
+		SourceURL: sourceURL,
+		Name:      parts[0],
+		Version:   parts[1],
+	}, nil
+}
+
+func kindFromPrefix(prefix, raw string) (PkgIDKind, error) {
+	switch prefix {
+	case "path":
+		return PkgIDPath, nil
+	case "registry":
+		return PkgIDRegistry, nil
+	case "git":
+		return PkgIDGit, nil
+	default:
+		return 0, fmt.Errorf("pkg_id %q: unknown source kind %q", raw, prefix)
+	}
 }
 
 // ManifestDir returns the directory containing the package's Cargo.toml

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/lczyk/assert"
+	"github.com/lczyk/assert/require"
 )
 
 // Container-side paths the capture.sh script bakes into the JSON
@@ -37,12 +38,12 @@ func TestFixture_FdLowering(t *testing.T) {
 	}
 
 	ug, err := LoadUnitGraph(ugPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	cfgBytes, err := os.ReadFile(cfgPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	cfg, err := ParseCfg(string(cfgBytes))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	got, err := Lower(ug, LowerOptions{
 		// The capture container is linux/<host-arch>. We pass a generic
@@ -54,7 +55,7 @@ func TestFixture_FdLowering(t *testing.T) {
 		ProjectRoot:        fdFixtureProjectRoot,
 		SkipManifestErrors: true,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, len(got.Invocations), len(ug.Units), "one invocation per unit")
 

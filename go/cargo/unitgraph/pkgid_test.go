@@ -56,6 +56,37 @@ func TestParsePkgID_RejectsMissingFragment(t *testing.T) {
 	assert.Error(t, err, "missing #fragment")
 }
 
+func TestParsePkgID_LegacyRegistry(t *testing.T) {
+	// cargo 1.84 emits the older `<name> <version> (<source>)` shape
+	// from --unit-graph / --build-plan. Must parse equivalently.
+	id, err := ParsePkgID("aho-corasick 1.1.3 (registry+https://github.com/rust-lang/crates.io-index)")
+	assert.NoError(t, err)
+	assert.Equal(t, id.Kind, PkgIDRegistry)
+	assert.Equal(t, id.Name, "aho-corasick")
+	assert.Equal(t, id.Version, "1.1.3")
+	assert.Equal(t, id.SourceURL, "https://github.com/rust-lang/crates.io-index")
+}
+
+func TestParsePkgID_LegacyPath(t *testing.T) {
+	id, err := ParsePkgID("fd-find 10.2.0 (path+file:///tmp/fd)")
+	assert.NoError(t, err)
+	assert.Equal(t, id.Kind, PkgIDPath)
+	assert.Equal(t, id.Name, "fd-find")
+	assert.Equal(t, id.Version, "10.2.0")
+	assert.Equal(t, id.SourceURL, "file:///tmp/fd")
+}
+
+func TestParsePkgID_LegacyGitWithCommit(t *testing.T) {
+	// Legacy git pkg_ids embed the resolved commit after a # inside
+	// the parens; SourceURL strips it.
+	id, err := ParsePkgID("foo 0.1.0 (git+https://example.com/repo#abc123)")
+	assert.NoError(t, err)
+	assert.Equal(t, id.Kind, PkgIDGit)
+	assert.Equal(t, id.Name, "foo")
+	assert.Equal(t, id.Version, "0.1.0")
+	assert.Equal(t, id.SourceURL, "https://example.com/repo")
+}
+
 func TestPkgID_ManifestDir_Path(t *testing.T) {
 	id, _ := ParsePkgID("path+file:///proj/foo#0.1.0")
 	dir, err := id.ManifestDir("/cargo", "")

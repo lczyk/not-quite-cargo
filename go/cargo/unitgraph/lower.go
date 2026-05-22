@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 // LowerOptions controls the lowering. Most fields are optional and have
@@ -445,10 +446,15 @@ func primaryFlag(u *Unit) string {
 }
 
 // isPrimaryPkg reports whether a pkg_id belongs to the local workspace
-// (path+) or a fetched dep (registry+ / git+). Drives both
-// CARGO_PRIMARY_PACKAGE and --cap-lints decisions.
+// or a fetched dep. Drives CARGO_PRIMARY_PACKAGE and --cap-lints
+// decisions. Handles both modern (`path+...`) and legacy
+// (`name version (path+...)`) pkg_id shapes.
 func isPrimaryPkg(pkgID string) bool {
-	return len(pkgID) >= 5 && pkgID[:5] == "path+"
+	if strings.HasPrefix(pkgID, "path+") {
+		return true
+	}
+	// Legacy form: look for "(path+" after the name + version.
+	return strings.Contains(pkgID, "(path+")
 }
 
 func manifestDirOf(d unitDerived, opt LowerOptions) string {
