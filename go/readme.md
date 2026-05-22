@@ -34,10 +34,10 @@ make clean
 ### stable: cargo `--build-plan` (cargo 1.28 -- 1.92)
 
 ```
-cargo build -j1 -Z unstable-options --build-plan > build_plan.json
-./bin/not-quite-cargo patch build_plan.json
+cargo build -j1 -Z unstable-options --build-plan > build-plan.json
+./bin/not-quite-cargo patch build-plan.json
 # ship to runner
-./bin/not-quite-cargo run build_plan.json
+./bin/not-quite-cargo run build-plan.json
 ```
 
 requires `-Z unstable-options` on nightly cargo, or `RUSTC_BOOTSTRAP=1` on
@@ -54,9 +54,9 @@ known limitations.
 
 ```
 cargo build -Z unstable-options --unit-graph > unit-graph.json
-./bin/not-quite-cargo build --os linux --arch aarch64 unit-graph.json > build_plan.json
-./bin/not-quite-cargo patch build_plan.json
-./bin/not-quite-cargo run build_plan.json
+./bin/not-quite-cargo build --os linux --arch aarch64 unit-graph.json > build-plan.json
+./bin/not-quite-cargo patch build-plan.json
+./bin/not-quite-cargo run build-plan.json
 ```
 
 flags on `build`:

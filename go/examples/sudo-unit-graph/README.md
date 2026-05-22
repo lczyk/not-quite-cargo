@@ -16,8 +16,8 @@ three steps against `nqc-sudo-ug-demo:1.84` (= `rust:1.84` +
 
 1. **planner** -- clones sudo-rs at the pinned tag, runs
    `cargo build -Z unstable-options --unit-graph`, then
-   `nqc build --os linux --arch <arch> --libc gnu unit-graph.json > build_plan.json`,
-   then `nqc patch build_plan.json`.
+   `nqc build --os linux --arch <arch> --libc gnu unit-graph.json > build-plan.json`,
+   then `nqc patch build-plan.json`.
 2. **runner** -- cargo deleted from `PATH`, `--network=none`. consumes
    the patched plan via `nqc run`.
 3. **prove** -- spin up `ubuntu:26.04` (no rust toolchain, network
@@ -47,7 +47,7 @@ artefacts land under `work/`:
 - `work/not-quite-cargo` -- cross-built nqc, mounted into both stages
 - `work/sudo-rs/` -- shallow clone of sudo-rs
 - `work/sudo-rs/unit-graph.json` -- cargo's --unit-graph dump
-- `work/sudo-rs/build_plan.json` -- nqc's derived + patched plan
+- `work/sudo-rs/build-plan.json` -- nqc's derived + patched plan
 - `work/sudo-rs/target/.../sudo` (etc.) -- the rust artefacts
 - `work/cargo-home/` -- registry / git caches; mounted read-only into
   the runner

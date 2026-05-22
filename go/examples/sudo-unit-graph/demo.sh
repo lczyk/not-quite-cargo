@@ -11,7 +11,7 @@
 #
 # Three docker steps, all against the same image:
 #   1. PLANNER  -- has cargo + rustc. clones sudo-rs, runs --unit-graph,
-#                  then nqc build to produce build_plan.json.
+#                  then nqc build to produce build-plan.json.
 #   2. PATCHER  -- nqc patch templates planner-side paths to placeholders.
 #                  same container, separate step for clarity.
 #   3. RUNNER   -- cargo stripped from PATH, network OFF. consumes the
@@ -133,8 +133,8 @@ function _planner_run() {
             # an equivalent plan from --unit-graph alone.
             not-quite-cargo build \
                 --os "${DEMO_OS}" --arch "${DEMO_ARCH}" --libc gnu \
-                unit-graph.json > build_plan.json
-            not-quite-cargo patch build_plan.json
+                unit-graph.json > build-plan.json
+            not-quite-cargo patch build-plan.json
         '
 }
 
@@ -147,7 +147,7 @@ function _runner_run() {
             printf "cargo still on PATH; demo invalid\n" >&2
             exit 1
         }
-        not-quite-cargo run build_plan.json
+        not-quite-cargo run build-plan.json
         printf "built artefacts:\n"
         find target -maxdepth 4 -type f -executable \( -name "sudo-*" -o -name "su-*" -o -name "visudo-*" \) | grep -v "\.d$"
     ')
