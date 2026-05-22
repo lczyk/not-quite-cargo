@@ -49,11 +49,10 @@ func TestFixture_FdLowering(t *testing.T) {
 		// The capture container is linux/<host-arch>. We pass a generic
 		// linux triple here; the lowering uses HostTriple only for the
 		// `platform: null` units, none of which need an exact match.
-		HostTriple:         "aarch64-unknown-linux-gnu",
-		Cfg:                cfg,
-		CargoHome:          fdFixtureCargoHome,
-		ProjectRoot:        fdFixtureProjectRoot,
-		SkipManifestErrors: true,
+		HostTriple:  "aarch64-unknown-linux-gnu",
+		Cfg:         cfg,
+		CargoHome:   fdFixtureCargoHome,
+		ProjectRoot: fdFixtureProjectRoot,
 	})
 	require.NoError(t, err)
 

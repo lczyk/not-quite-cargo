@@ -9,20 +9,22 @@ import (
 	"strings"
 )
 
-// LowerOptions controls the lowering. Most fields are optional and have
-// sensible defaults derived from the unit-graph + environment.
+// LowerOptions controls the lowering. Pure transform: Lower reads no
+// files beyond the unit-graph passed in by the caller. Everything else
+// is opts.
 type LowerOptions struct {
 	// HostTriple identifies the planner's host platform, used for units
 	// with `platform: null` (host builds, proc macros, build scripts).
 	HostTriple string
 
-	// CargoHome is the planner's CARGO_HOME, used to locate registry
-	// sources on disk. Defaults to `$HOME/.cargo`.
+	// CargoHome is the string spliced into manifest-dir paths for
+	// registry / git sources (`<CargoHome>/registry/src/<index>/<crate>-<ver>`).
+	// No file lookups happen against it -- pass any value the runner
+	// will see.
 	CargoHome string
 
-	// ProjectRoot is the path under which `target/` will be written on
-	// the runner; the lowerer emits paths relative to this so the
-	// existing patch step can template them to `{{PROJECT_ROOT}}`.
+	// ProjectRoot is spliced into output paths so the runner knows where
+	// to write target/. No file lookups happen against it either.
 	ProjectRoot string
 
 	// RustcPath is the program string emitted for rustc invocations.
@@ -39,15 +41,11 @@ type LowerOptions struct {
 	Cfg CfgMap
 
 	// RegistryIndex names the index cache subdirectory under
-	// $CARGO_HOME/registry/src/. If empty the lowerer scans and picks
-	// the first one it finds (works for the common single-registry case).
+	// CargoHome/registry/src/ (e.g. "index.crates.io-1949cf8c6b5b557f").
+	// Used only as a path component; not validated against disk. Empty
+	// is fine -- CARGO_MANIFEST_DIR for registry units just won't carry
+	// the index segment then.
 	RegistryIndex string
-
-	// SkipManifestErrors causes the lowerer to fall back to bare
-	// CARGO_PKG_NAME/_VERSION (derived from pkg_id) when a manifest
-	// can't be loaded, instead of returning the error. Useful for git
-	// sources whose checkout dir isn't statically resolvable.
-	SkipManifestErrors bool
 }
 
 // LowerOutput is the result of lowering: an `Invocation`-shaped JSON
@@ -94,21 +92,8 @@ func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
 	if opt.Cfg == nil {
 		return nil, fmt.Errorf("lower: Cfg is required")
 	}
-	if opt.CargoHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("lower: resolve CARGO_HOME: %w", err)
-		}
-		opt.CargoHome = filepath.Join(home, ".cargo")
-	}
 	if opt.RustcPath == "" {
 		opt.RustcPath = "rustc"
-	}
-	if opt.RegistryIndex == "" {
-		idx, err := guessRegistryIndex(opt.CargoHome)
-		if err == nil {
-			opt.RegistryIndex = idx
-		}
 	}
 
 	out := &LowerOutput{
@@ -161,17 +146,13 @@ func preDerive(u *Unit, opt LowerOptions) (unitDerived, string, error) {
 		return unitDerived{}, "", err
 	}
 
-	var pkg PkgMetadata
+	// Pure transform: no file reads. CARGO_PKG_* env vars are populated
+	// from the pkg_id alone (name + version). Other manifest fields
+	// (description / license / authors / ...) stay empty -- the unit-
+	// graph doesn't carry them and we don't want to depend on the
+	// caller's filesystem here.
+	pkg := PkgMetadata{Name: id.Name, Version: id.Version}
 	var warning string
-	pkg, err = LoadManifestForPkg(id, opt.CargoHome, opt.RegistryIndex)
-	if err != nil {
-		if !opt.SkipManifestErrors {
-			return unitDerived{}, "", fmt.Errorf("load manifest: %w", err)
-		}
-		// Fallback: best-effort from pkg_id alone.
-		pkg = PkgMetadata{Name: id.Name, Version: id.Version}
-		warning = fmt.Sprintf("manifest load failed for %s (falling back to pkg_id-only metadata): %v", id.Name, err)
-	}
 
 	platform := u.PlatformOrHost(opt.HostTriple)
 	profileDir := profileDir(u.Profile.Name)
@@ -484,22 +465,6 @@ func profileDir(name string) string {
 // holding the dep-info file is the parent of incremental/).
 func incrementalDirFor(projectRoot, profileDir string, u *Unit, hash string) string {
 	return filepath.Join(projectRoot, "target", profileDir, "incremental", underscore(u.Target.Name)+"-"+hash)
-}
-
-// guessRegistryIndex returns the first subdir of $CARGO_HOME/registry/src/
-// it finds, on the assumption that most projects use a single registry.
-// Returns an error if the dir doesn't exist or is empty.
-func guessRegistryIndex(cargoHome string) (string, error) {
-	entries, err := os.ReadDir(filepath.Join(cargoHome, "registry", "src"))
-	if err != nil {
-		return "", err
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			return e.Name(), nil
-		}
-	}
-	return "", fmt.Errorf("no registry index dir under %s", cargoHome)
 }
 
 // LoadUnitGraph reads a unit-graph JSON file from disk.

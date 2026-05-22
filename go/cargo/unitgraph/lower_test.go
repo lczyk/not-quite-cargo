@@ -108,7 +108,9 @@ func TestLower_TinyGraph(t *testing.T) {
 	}
 	assert.That(t, sawExtern, "expected an --extern entry")
 
-	// Env: CARGO_PKG_NAME from demo's manifest, CARGO_CRATE_NAME canonical.
+	// Env: CARGO_PKG_NAME from pkg_id, CARGO_CRATE_NAME canonical.
+	// (pkg_id carries name + version; other CARGO_PKG_* stay empty
+	// because Lower no longer reads Cargo.toml.)
 	assert.Equal(t, bin.Env["CARGO_PKG_NAME"], "demo")
 	assert.Equal(t, bin.Env["CARGO_CRATE_NAME"], "demo")
 	assert.Equal(t, bin.Env["CARGO_BIN_NAME"], "demo")
@@ -118,7 +120,6 @@ func TestLower_TinyGraph(t *testing.T) {
 	lib := out.Invocations[1]
 	assert.Equal(t, lib.PackageName, "serde")
 	assert.Equal(t, lib.Env["CARGO_PRIMARY_PACKAGE"], "")
-	assert.Equal(t, lib.Env["CARGO_PKG_LICENSE"], "MIT OR Apache-2.0")
 }
 
 func TestLower_RejectsBadVersion(t *testing.T) {

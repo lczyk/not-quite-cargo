@@ -172,8 +172,10 @@ func (p PkgID) ManifestDir(cargoHome, indexDir string) (string, error) {
 		}
 		return u.Path, nil
 	case PkgIDRegistry:
+		// Path is constructed for downstream env/cwd use; we never stat
+		// it. Empty indexDir just omits the index segment.
 		if indexDir == "" {
-			return "", fmt.Errorf("pkg_id %q: registry source needs an index dir", p.Raw)
+			return filepath.Join(cargoHome, "registry", "src", p.Name+"-"+p.Version), nil
 		}
 		return filepath.Join(cargoHome, "registry", "src", indexDir, p.Name+"-"+p.Version), nil
 	case PkgIDGit:

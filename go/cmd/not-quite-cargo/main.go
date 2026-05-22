@@ -98,12 +98,6 @@ func (c *LowerCommand) Execute(_ []string) error {
 		CargoHome:   c.CargoHome,
 		ProjectRoot: root,
 		RustcPath:   c.RustcPath,
-		// Manifest loads are best-effort by design: a fully-captured
-		// plan often references registry crates whose source tree isn't
-		// present on the consumer machine, and a hard failure there is
-		// unhelpful. Failures fall back to pkg_id-only metadata + a
-		// warning per unit.
-		SkipManifestErrors: true,
 	})
 	if err != nil {
 		return err

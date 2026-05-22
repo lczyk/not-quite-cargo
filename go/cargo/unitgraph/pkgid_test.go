@@ -102,10 +102,14 @@ func TestPkgID_ManifestDir_Registry(t *testing.T) {
 	assert.Equal(t, dir, want)
 }
 
-func TestPkgID_ManifestDir_RegistryMissingIndex(t *testing.T) {
+func TestPkgID_ManifestDir_RegistryNoIndex(t *testing.T) {
+	// With empty indexDir we still produce a non-error path; just
+	// without the index segment. Downstream consumers (run.go) only
+	// stat outputs/links, not this dir, so missing index data is fine.
 	id, _ := ParsePkgID("registry+https://github.com/rust-lang/crates.io-index#serde@1.0.215")
-	_, err := id.ManifestDir("/cargo", "")
-	assert.Error(t, err, "registry source needs an index dir")
+	dir, err := id.ManifestDir("/cargo", "")
+	assert.NoError(t, err)
+	assert.Equal(t, dir, filepath.Join("/cargo", "registry", "src", "serde-1.0.215"))
 }
 
 func TestPkgID_ManifestDir_GitErrors(t *testing.T) {
