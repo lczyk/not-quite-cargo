@@ -3,21 +3,20 @@ package cargo
 import (
 	"strings"
 	"testing"
+
+	"github.com/lczyk/assert"
 )
 
 // envMap collapses the kv-string slice that buildEnv returns into a map for
-// easy assertions.
+// easy assertions, asserting no duplicate keys exist (dedup invariant).
 func envMap(t *testing.T, kvs []string) map[string]string {
 	t.Helper()
 	m := make(map[string]string, len(kvs))
 	for _, kv := range kvs {
 		k, v, ok := strings.Cut(kv, "=")
-		if !ok {
-			t.Fatalf("malformed env entry: %q", kv)
-		}
-		if _, dup := m[k]; dup {
-			t.Fatalf("duplicate key %q in env (dedup broken)", k)
-		}
+		assert.That(t, ok, "malformed env entry: %q", kv)
+		_, dup := m[k]
+		assert.That(t, !dup, "duplicate key %q in env (dedup broken)", k)
 		m[k] = v
 	}
 	return m
@@ -43,23 +42,9 @@ func TestBuildEnv_PrecedenceAndDedupe(t *testing.T) {
 	}
 	got := envMap(t, buildEnv(cfg, invEnv))
 
-	// Invocation env wins over cfg.
-	if got["RUSTC"] != "/inv/rustc" {
-		t.Errorf("RUSTC: invocation env should override cfg, got %q", got["RUSTC"])
-	}
-	// Cfg wins over parent.
-	if got["CARGO_HOME"] != "/cfg/cargo" {
-		t.Errorf("CARGO_HOME: cfg should override parent, got %q", got["CARGO_HOME"])
-	}
-	if got["PROJECT_ROOT"] != "/cfg/proj" {
-		t.Errorf("PROJECT_ROOT: cfg should override parent, got %q", got["PROJECT_ROOT"])
-	}
-	// Invocation wins over parent (cfg doesn't set this key).
-	if got["CARGO_PKG_NAME"] != "inv-pkg" {
-		t.Errorf("CARGO_PKG_NAME: invocation should override parent, got %q", got["CARGO_PKG_NAME"])
-	}
-	// Invocation-only key passes through.
-	if got["INV_ONLY"] != "yes" {
-		t.Errorf("INV_ONLY: missing or wrong, got %q", got["INV_ONLY"])
-	}
+	assert.Equal(t, got["RUSTC"], "/inv/rustc", "invocation env overrides cfg")
+	assert.Equal(t, got["CARGO_HOME"], "/cfg/cargo", "cfg overrides parent")
+	assert.Equal(t, got["PROJECT_ROOT"], "/cfg/proj", "cfg overrides parent")
+	assert.Equal(t, got["CARGO_PKG_NAME"], "inv-pkg", "invocation overrides parent")
+	assert.Equal(t, got["INV_ONLY"], "yes", "invocation-only key passes through")
 }

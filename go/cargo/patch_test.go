@@ -7,54 +7,38 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/lczyk/assert"
 )
 
 // TestPatch_Golden patches a fixture plan in a temp dir and compares the
 // result, byte for byte after re-encoding, to the expected fixture.
 func TestPatch_Golden(t *testing.T) {
 	src, err := os.ReadFile(filepath.Join("testdata", "plan.small.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	tmp := filepath.Join(t.TempDir(), "plan.json")
-	if err := os.WriteFile(tmp, src, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, os.WriteFile(tmp, src, 0o644))
 
 	cfg := &Config{
 		ProjectRoot: "/proj/root",
 		CargoHome:   "/cargo/home",
 		RustcPath:   "/some/rustc",
 	}
-	if err := Patch(tmp, cfg); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, Patch(tmp, cfg))
 
 	got, err := os.ReadFile(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	want, err := os.ReadFile(filepath.Join("testdata", "plan.small.patched.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Normalise both via Go's json round-trip so whitespace / key ordering
-	// quirks don't drive a false negative -- semantic equality is what matters.
-	if !jsonEqual(t, got, want) {
-		t.Errorf("patched output does not match golden\n--- got ---\n%s\n--- want ---\n%s", got, want)
-	}
+	assert.NoError(t, err)
+	assert.That(t, jsonEqual(t, got, want),
+		"patched output does not match golden\n--- got ---\n%s\n--- want ---\n%s", got, want)
 }
 
 func TestPatch_RUSTCNotWrittenToFile(t *testing.T) {
 	src, err := os.ReadFile(filepath.Join("testdata", "plan.small.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	tmp := filepath.Join(t.TempDir(), "plan.json")
-	if err := os.WriteFile(tmp, src, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, os.WriteFile(tmp, src, 0o644))
 	cfg := &Config{
 		ProjectRoot: "/proj/root",
 		CargoHome:   "/cargo/home",
@@ -62,31 +46,21 @@ func TestPatch_RUSTCNotWrittenToFile(t *testing.T) {
 		// to {{RUSTC}}, this test would catch the regression.
 		RustcPath: "/proj/root",
 	}
-	if err := Patch(tmp, cfg); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, Patch(tmp, cfg))
 	got, err := os.ReadFile(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	if bytes.Contains(got, []byte("{{RUSTC}}")) {
 		// program=rustc -> {{RUSTC}} is allowed, but every other occurrence
 		// must come from string replacement, which we explicitly skip.
-		// Decode and check program field only.
 		var plan map[string]any
-		if err := json.Unmarshal(got, &plan); err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, json.Unmarshal(got, &plan))
 		invs := plan["invocations"].([]any)
 		for _, raw := range invs {
 			inv := raw.(map[string]any)
-			body, _ := json.Marshal(inv)
-			// strip out the program field, then check no {{RUSTC}} remains.
 			delete(inv, "program")
 			stripped, _ := json.Marshal(inv)
-			if bytes.Contains(stripped, []byte("{{RUSTC}}")) {
-				t.Errorf("{{RUSTC}} leaked into non-program field: %s", body)
-			}
+			assert.That(t, !bytes.Contains(stripped, []byte("{{RUSTC}}")),
+				"{{RUSTC}} leaked into non-program field: %s", stripped)
 		}
 	}
 }
@@ -122,23 +96,15 @@ func TestPatch_DiagnosticWidthTwoArg(t *testing.T) {
 	}
 	body, _ := json.Marshal(plan)
 	tmp := filepath.Join(t.TempDir(), "plan.json")
-	if err := os.WriteFile(tmp, body, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, os.WriteFile(tmp, body, 0o644))
 	cfg := &Config{ProjectRoot: "/proj", CargoHome: "/cargo", RustcPath: "/r"}
-	if err := Patch(tmp, cfg); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, Patch(tmp, cfg))
 	got, _ := os.ReadFile(tmp)
 	var out map[string]any
-	if err := json.Unmarshal(got, &out); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, json.Unmarshal(got, &out))
 	args := out["invocations"].([]any)[0].(map[string]any)["args"].([]any)
 	want := []any{"--edition=2021", "--crate-name", "x", "--out-dir", "/tmp/out"}
-	if !reflect.DeepEqual(args, want) {
-		t.Errorf("args mismatch\n got: %v\nwant: %v", args, want)
-	}
+	assert.EqualCmpAny(t, args, want, func(a, b any) bool { return reflect.DeepEqual(a, b) })
 }
 
 func TestPatch_AtomicWrite(t *testing.T) {
@@ -147,33 +113,21 @@ func TestPatch_AtomicWrite(t *testing.T) {
 	src, _ := os.ReadFile(filepath.Join("testdata", "plan.small.json"))
 	dir := t.TempDir()
 	tmp := filepath.Join(dir, "plan.json")
-	if err := os.WriteFile(tmp, src, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, os.WriteFile(tmp, src, 0o644))
 	cfg := &Config{ProjectRoot: "/proj/root", CargoHome: "/cargo/home", RustcPath: "/r"}
-	if err := Patch(tmp, cfg); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, Patch(tmp, cfg))
 	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	for _, e := range entries {
-		if e.Name() != "plan.json" {
-			t.Errorf("stray file left behind: %s", e.Name())
-		}
+		assert.Equal(t, e.Name(), "plan.json", "stray file left behind")
 	}
 }
 
 func jsonEqual(t *testing.T, a, b []byte) bool {
 	t.Helper()
 	var av, bv any
-	if err := json.Unmarshal(a, &av); err != nil {
-		t.Fatalf("decode got: %v", err)
-	}
-	if err := json.Unmarshal(b, &bv); err != nil {
-		t.Fatalf("decode want: %v", err)
-	}
+	assert.NoError(t, json.Unmarshal(a, &av), "decode got")
+	assert.NoError(t, json.Unmarshal(b, &bv), "decode want")
 	ajson, _ := json.Marshal(av)
 	bjson, _ := json.Marshal(bv)
 	return bytes.Equal(ajson, bjson)

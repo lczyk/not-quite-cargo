@@ -3,6 +3,8 @@ package cargo
 import (
 	"reflect"
 	"testing"
+
+	"github.com/lczyk/assert"
 )
 
 func TestDeepReplace(t *testing.T) {
@@ -25,17 +27,12 @@ func TestDeepReplace(t *testing.T) {
 		},
 		"plain": "no-placeholder",
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("DeepReplace mismatch\n got: %#v\nwant: %#v", got, want)
-	}
+	assert.EqualCmpAny(t, got, want, func(a, b any) bool { return reflect.DeepEqual(a, b) })
 }
 
 func TestDeepReplace_NonStringScalar(t *testing.T) {
-	// Numbers, bools, nil pass through untouched even if replacements exist.
 	got := DeepReplace(42, map[string]string{"42": "no"})
-	if got != 42 {
-		t.Fatalf("expected 42, got %v", got)
-	}
+	assert.Equal(t, got, any(42))
 }
 
 func TestDeepReplace_OverlappingKeys(t *testing.T) {
@@ -46,13 +43,8 @@ func TestDeepReplace_OverlappingKeys(t *testing.T) {
 		"/home/u/proj":        "{{PROJECT_ROOT}}",
 		"/home/u/proj/.cargo": "{{CARGO_HOME}}",
 	}
-	// Run many times -- with map iteration this is non-deterministic; with
-	// the length-desc fix the answer is the same every time.
-	want := "{{CARGO_HOME}}/registry"
 	for i := 0; i < 100; i++ {
 		got := DeepReplace("/home/u/proj/.cargo/registry", repl)
-		if got != want {
-			t.Fatalf("iter %d: got %q, want %q", i, got, want)
-		}
+		assert.Equal(t, got, any("{{CARGO_HOME}}/registry"), "iter %d", i)
 	}
 }

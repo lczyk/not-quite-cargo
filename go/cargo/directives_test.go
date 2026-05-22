@@ -1,8 +1,9 @@
 package cargo
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/lczyk/assert"
 )
 
 type captureLogger struct{ warnings []string }
@@ -113,15 +114,9 @@ func TestParseBuildScriptOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			log := &captureLogger{}
 			got := ParseBuildScriptOutput(tc.input, log)
-			if !reflect.DeepEqual(got.RustcFlags, tc.wantFlags) {
-				t.Errorf("flags mismatch\n got: %v\nwant: %v", got.RustcFlags, tc.wantFlags)
-			}
-			if !reflect.DeepEqual(got.EnvVars, tc.wantEnv) {
-				t.Errorf("env mismatch\n got: %v\nwant: %v", got.EnvVars, tc.wantEnv)
-			}
-			if len(log.warnings) != tc.wantWarns {
-				t.Errorf("warnings: got %d, want %d (%v)", len(log.warnings), tc.wantWarns, log.warnings)
-			}
+			assert.EqualArrays(t, got.RustcFlags, tc.wantFlags, "flags")
+			assert.EqualMaps(t, got.EnvVars, tc.wantEnv, "env")
+			assert.Equal(t, len(log.warnings), tc.wantWarns, "warnings: %v", log.warnings)
 		})
 	}
 }

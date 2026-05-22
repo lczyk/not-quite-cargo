@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/lczyk/assert"
+
 	flags "github.com/jessevdk/go-flags"
 )
 
@@ -24,13 +26,10 @@ func TestOptions_GoFlagsTags(t *testing.T) {
 		if _, ok := f.Tag.Lookup("command"); !ok {
 			continue
 		}
-		if f.Tag.Get("description") == "" {
-			t.Errorf("%s: missing description tag", f.Name)
-		}
+		assert.That(t, f.Tag.Get("description") != "", "%s: missing description tag", f.Name)
 		ptr := reflect.PointerTo(f.Type)
-		if !ptr.Implements(commander) {
-			t.Errorf("%s (%s) does not implement flags.Commander -- Execute signature must be Execute(args []string) error",
-				f.Name, f.Type)
-		}
+		assert.That(t, ptr.Implements(commander),
+			"%s (%s) does not implement flags.Commander -- Execute signature must be Execute(args []string) error",
+			f.Name, f.Type)
 	}
 }

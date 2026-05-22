@@ -3,6 +3,8 @@ package cargo
 import (
 	"math/rand"
 	"testing"
+
+	"github.com/lczyk/assert"
 )
 
 func mkInv(num int, deps ...int) Invocation {
@@ -20,39 +22,28 @@ func numbers(invs []Invocation) []int {
 func TestResolveInvocationOrder_Linear(t *testing.T) {
 	in := []Invocation{mkInv(0), mkInv(1, 0), mkInv(2, 1)}
 	got, err := ResolveInvocationOrder(in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []int{0, 1, 2}
-	if got := numbers(got); !equal(got, want) {
-		t.Errorf("got %v, want %v", got, want)
-	}
+	assert.NoError(t, err)
+	assert.EqualArrays(t, numbers(got), []int{0, 1, 2})
 }
 
 func TestResolveInvocationOrder_Diamond(t *testing.T) {
 	// 0 -> 1, 0 -> 2, 1+2 -> 3
 	in := []Invocation{mkInv(0), mkInv(1, 0), mkInv(2, 0), mkInv(3, 1, 2)}
 	got, err := ResolveInvocationOrder(in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := numbers(got); !equal(got, []int{0, 1, 2, 3}) {
-		t.Errorf("got %v, want diamond order [0 1 2 3]", got)
-	}
+	assert.NoError(t, err)
+	assert.EqualArrays(t, numbers(got), []int{0, 1, 2, 3})
 }
 
 func TestResolveInvocationOrder_Cycle(t *testing.T) {
 	in := []Invocation{mkInv(0, 1), mkInv(1, 0)}
-	if _, err := ResolveInvocationOrder(in); err == nil {
-		t.Fatal("expected cycle error, got nil")
-	}
+	_, err := ResolveInvocationOrder(in)
+	assert.Error(t, err, assert.AnyError)
 }
 
 func TestResolveInvocationOrder_MissingDep(t *testing.T) {
 	in := []Invocation{mkInv(0, 99)}
-	if _, err := ResolveInvocationOrder(in); err == nil {
-		t.Fatal("expected missing-dep error, got nil")
-	}
+	_, err := ResolveInvocationOrder(in)
+	assert.Error(t, err, assert.AnyError)
 }
 
 func TestResolveInvocationOrder_Deterministic(t *testing.T) {
@@ -66,32 +57,14 @@ func TestResolveInvocationOrder_Deterministic(t *testing.T) {
 	}
 	rng := rand.New(rand.NewSource(42))
 	first, err := ResolveInvocationOrder(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	want := numbers(first)
 	for i := 0; i < 50; i++ {
 		shuffled := make([]Invocation, len(base))
 		copy(shuffled, base)
 		rng.Shuffle(len(shuffled), func(a, b int) { shuffled[a], shuffled[b] = shuffled[b], shuffled[a] })
 		got, err := ResolveInvocationOrder(shuffled)
-		if err != nil {
-			t.Fatalf("iter %d: %v", i, err)
-		}
-		if got := numbers(got); !equal(got, want) {
-			t.Fatalf("iter %d: order %v, want %v", i, got, want)
-		}
+		assert.NoError(t, err, "iter %d", i)
+		assert.EqualArrays(t, numbers(got), want, "iter %d", i)
 	}
-}
-
-func equal(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
