@@ -22,6 +22,12 @@ type ArgsInputs struct {
 	// for `-L dependency=`. Same dir as Out.Primary's parent.
 	DepsDir string
 
+	// IncrementalDir, if non-empty, becomes `-C incremental=<dir>` so
+	// rustc can cache fingerprint info across runs. The orchestrator
+	// passes a per-unit `target/<profile>/incremental/<crate>-<hash>`
+	// dir when the unit's profile requests incremental, else empty.
+	IncrementalDir string
+
 	// CapLints, when true, adds `--cap-lints warn` to downgrade the
 	// unit's lints to warnings -- cargo does this for non-primary
 	// packages (registry / git deps) so a dep's `#![deny(...)]`
@@ -86,6 +92,12 @@ func RustcArgs(in ArgsInputs) ([]string, error) {
 	// Output dir.
 	if in.DepsDir != "" {
 		args = append(args, "--out-dir", in.DepsDir)
+	}
+
+	// Incremental cache dir (orchestrator decides whether to populate
+	// this; rustc rejects bare `-C incremental` without a path).
+	if in.IncrementalDir != "" {
+		args = append(args, "-C", "incremental="+in.IncrementalDir)
 	}
 
 	// -L dependency=<deps-dir> so dependent rmeta lookups succeed.
@@ -157,11 +169,10 @@ func profileFlags(p UnitProfile) []string {
 	} else {
 		args = append(args, "-C", "overflow-checks=off")
 	}
-	// Incremental is intentionally omitted for now: rustc requires a
-	// directory path (`-C incremental=<dir>`), which cargo computes
-	// per-unit at `<project>/target/<profile>/incremental/<name>-<hash>`.
-	// We currently emit a non-incremental build instead -- correct,
-	// slower. TODO(lczyk): synthesise the dir + pass it through.
+	// Incremental is handled outside profileFlags: the orchestrator
+	// computes a per-unit directory and feeds it back via
+	// ArgsInputs.IncrementalDir, which produces `-C incremental=<dir>`.
+	// This keeps profileFlags pure / not-dependent on per-call state.
 	_ = p.Incremental
 	if p.Rpath {
 		args = append(args, "-C", "rpath")

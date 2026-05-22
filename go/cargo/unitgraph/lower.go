@@ -259,13 +259,18 @@ func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions, 
 
 	// Default: rustc invocation (build, test, check, etc).
 	externs := resolveExterns(u, derived)
+	incDir := ""
+	if u.Profile.Incremental {
+		incDir = incrementalDirFor(opt.ProjectRoot, profileDir(u.Profile.Name), u, d.hash)
+	}
 	args, err := RustcArgs(ArgsInputs{
-		Unit:     u,
-		Hash:     d.hash,
-		Out:      d.outputs,
-		Externs:  externs,
-		DepsDir:  d.depsDir,
-		CapLints: !isPrimaryPkg(u.PkgID),
+		Unit:           u,
+		Hash:           d.hash,
+		Out:            d.outputs,
+		Externs:        externs,
+		DepsDir:        d.depsDir,
+		IncrementalDir: incDir,
+		CapLints:       !isPrimaryPkg(u.PkgID),
 	})
 	if err != nil {
 		return Invocation{}, err
@@ -465,6 +470,14 @@ func profileDir(name string) string {
 		return "debug"
 	}
 	return name
+}
+
+// incrementalDirFor mirrors cargo's per-unit incremental cache layout:
+// `<root>/target/<profile>/incremental/<crate>-<hash>`. Run creates the
+// directory automatically when ensuring output dirs exist (the dir
+// holding the dep-info file is the parent of incremental/).
+func incrementalDirFor(projectRoot, profileDir string, u *Unit, hash string) string {
+	return filepath.Join(projectRoot, "target", profileDir, "incremental", underscore(u.Target.Name)+"-"+hash)
 }
 
 // guessRegistryIndex returns the first subdir of $CARGO_HOME/registry/src/
