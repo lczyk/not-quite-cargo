@@ -1,4 +1,4 @@
-# fd unit-graph + build-plan golden fixture
+# fd unit-graph golden fixture
 
 provenance for the captured fixtures in this directory.
 
@@ -6,19 +6,30 @@ provenance for the captured fixtures in this directory.
 | ------------ | ---------------------------------------------------- |
 | crate        | [`fd`](https://github.com/sharkdp/fd)                |
 | pinned ref   | `v10.2.0`                                            |
-| cargo        | `1.84.1` (inside `rust:1.84` docker image)           |
-| capture cmd  | `./capture.sh`                                       |
+| cargo        | `1.94.0` (host) for `ug.json`                        |
+| target       | `aarch64-apple-darwin` (irrelevant after anonymise)  |
+| capture      | locally on the host, see below                       |
 
-both files are committed in their anonymised form (paths templated to
-`{{PROJECT_ROOT}}` / `{{CARGO_HOME}}` placeholders so the fixtures are
-portable). re-anonymisation happens via the existing nqc patch step.
+`ug.json` was captured by:
 
-## files
+```
+git clone --depth 1 --branch v10.2.0 https://github.com/sharkdp/fd.git
+cd fd
+cargo fetch
+RUSTC_BOOTSTRAP=1 cargo build -Z unstable-options --unit-graph > ug.raw.json
+```
 
-- `ug.json` -- cargo's `-Z unstable-options --unit-graph` output
-- `build-plan.json` -- cargo's `-Z unstable-options --build-plan` output;
-  this is the ground truth our lower output is compared against
-  (semantic match, hash-dependent paths normalised)
+then anonymised (planner-side paths `/Users/.../`, `/tmp/...`, and the
+absolute `rustc` path replaced with `{{CARGO_HOME}}`, `{{PROJECT_ROOT}}`,
+`{{RUSTC}}` placeholders). this makes the fixture portable across hosts.
+
+## ground-truth build-plan
+
+a corresponding `build-plan.json` (cargo's own `--build-plan` output) is
+not committed yet. `--build-plan` was removed in cargo 1.93.0, so it
+must be captured inside `rust:1.84` via `./capture.sh` -- which requires
+docker and a few minutes. when present, a future stricter test can diff
+the lower output against it semantically.
 
 ## refresh
 
@@ -28,8 +39,8 @@ cd go/cargo/unitgraph/testdata/fd
 ```
 
 requires docker (or set `DOCKER=podman`). pulls `rust:1.84`, clones fd
-at `v10.2.0`, runs both `-Z` flags, runs nqc patch to anonymise. about
-3 minutes on a warm image.
+at the pinned ref, runs both `-Z` flags, runs nqc patch to anonymise.
+about 3 minutes on a warm image.
 
 if `fd` changes its dep graph in a way that breaks the golden, bump the
 pinned ref above + re-run the capture.
