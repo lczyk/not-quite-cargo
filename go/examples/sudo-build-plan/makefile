@@ -66,7 +66,7 @@ plan: binary clone  ## generate & patch build-plan.json
 		--volume $(WORKDIR)/cargo-home:/cargo-home \
 		--workdir /work \
 		-e CARGO_HOME=/cargo-home -e RUSTC_BOOTSTRAP=1 \
-		$(PLAN_IMAGE) exec sh -c 'set -e; cargo build -j1 -Z unstable-options --build-plan > build-plan.json'
+		$(PLAN_IMAGE) exec sh -c 'set -e; cd /work; cargo build -j1 -Z unstable-options --build-plan > build-plan.json'
 	@echo "[demo] planner: patching build-plan.json on host"
 	cd $(GO_ROOT) && go run ./cmd/not-quite-cargo patch $(SUDO_RS_DIR)/build-plan.json
 
