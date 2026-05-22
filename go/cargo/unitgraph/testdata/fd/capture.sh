@@ -53,7 +53,8 @@ function main() {
         "${RUST_IMAGE}" \
         bash -c '
             set -e
-            git clone --depth 1 --branch "${FD_REF}" \
+            git -c advice.detachedHead=false clone --depth 1 \
+                --branch "${FD_REF}" \
                 https://github.com/sharkdp/fd.git /tmp/fd
             mkdir -p /tmp/cargo-home
             cd /tmp/fd
