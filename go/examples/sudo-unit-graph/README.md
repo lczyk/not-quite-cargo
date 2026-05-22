@@ -21,6 +21,11 @@ three steps against `nqc-sudo-ug-demo:1.84` (= `rust:1.84` +
    then `nqc patch build_plan.json`.
 2. **runner** -- cargo deleted from `PATH`, `--network=none`. consumes
    the patched plan via `nqc run`.
+3. **prove** -- spin up `ubuntu:26.04` (no rust toolchain, network
+   off). copy the built `sudo` binary in, set the setuid bit, drop a
+   minimal `/etc/sudoers` (root NOPASSWD) and a permissive
+   `/etc/pam.d/sudo`, run `sudo whoami`. should print `root` --
+   proves the binary actually executes + elevates in a stock distro.
 
 if cargo's absence in the runner stage caused the build to fail, the
 demo would exit non-zero. instead the runner produces the sudo-rs

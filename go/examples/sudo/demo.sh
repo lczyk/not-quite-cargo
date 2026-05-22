@@ -159,6 +159,38 @@ function _runner_run() {
         "${entrypoint[@]}"
 }
 
+function _prove_run() {
+    local arch="$1"
+    _info "prove: drop built sudo into ubuntu:26.04, run 'sudo whoami'"
+    # Fresh image (no rust toolchain). Network off -- proves the binary
+    # carries its own runtime needs. install sets the setuid bit; minimal
+    # /etc/sudoers + /etc/pam.d/sudo let the binary actually elevate.
+    "${DOCKER}" run --rm ${_TTY_FLAG} \
+        --platform=linux/"${arch}" \
+        --network=none \
+        --volume "${SUDO_RS_DIR}/target":/sudo-target:ro \
+        ${_NO_COLOR_FLAG} \
+        ubuntu:26.04 \
+        bash -c '
+            set -e
+            BIN=$(find /sudo-target -name "sudo-*" -type f -executable | head -n1)
+            [ -n "$BIN" ] || { echo "no sudo binary under /sudo-target" >&2; exit 1; }
+            install -m 4755 -o root -g root "$BIN" /usr/local/bin/sudo
+            echo "root ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers
+            chmod 440 /etc/sudoers
+            {
+                echo "auth sufficient pam_permit.so"
+                echo "account sufficient pam_permit.so"
+                echo "session sufficient pam_permit.so"
+            } > /etc/pam.d/sudo
+            echo "linkage:"
+            ldd /usr/local/bin/sudo
+            echo
+            echo "running: sudo whoami"
+            sudo whoami
+        '
+}
+
 function main() {
     command -v "${DOCKER}" >/dev/null 2>&1 || _fail "${DOCKER} not on PATH"
     command -v go >/dev/null 2>&1 || _fail "go not on PATH (need to cross-build the binary)"
@@ -174,6 +206,7 @@ function main() {
     _clone_sudo_rs
     _planner_run "${arch}"
     _runner_run "${arch}"
+    _prove_run "${arch}"
 
     _info "done. output binary should be under ${SUDO_RS_DIR}/target/"
 }

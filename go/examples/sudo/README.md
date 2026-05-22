@@ -6,9 +6,10 @@ go version of not-quite-cargo.
 
 ## what it does
 
-three steps: a one-time base-image build, then two docker stages against
-that image (`nqc-sudo-demo:1.84` = `rust:1.84` + `libpam0g-dev` + `pkg-config`,
-needed b/c sudo-rs links against `libpam`):
+four steps: a one-time base-image build, two docker stages against
+that image (`nqc-sudo-demo:1.84` = `rust:1.84` + `libpam0g-dev` +
+`pkg-config`, needed b/c sudo-rs links against `libpam`), then a final
+prove step in a fresh `ubuntu:26.04`:
 
 1. **planner** -- has cargo + rustc. clones sudo-rs at a pinned tag, runs
    `cargo build -Z unstable-options --build-plan > build_plan.json` (with
@@ -21,6 +22,13 @@ needed b/c sudo-rs links against `libpam`):
 if cargo's absence in stage 2 caused the build to fail, the demo would
 exit with a non-zero status. instead the runner produces the sudo-rs
 binaries from rustc alone.
+
+3. **prove** -- spin up `ubuntu:26.04` (no rust toolchain at all,
+   network off). copy the built `sudo` binary in, set the setuid bit,
+   drop a minimal `/etc/sudoers` (root NOPASSWD) and a permissive
+   `/etc/pam.d/sudo`, then run `sudo whoami`. it should print
+   `root` -- proving the binary actually executes + elevates in a
+   stock distro env.
 
 ## prerequisites
 
