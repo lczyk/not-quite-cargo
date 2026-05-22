@@ -67,8 +67,11 @@ flags on `lower`:
 - `--project-root <path>` -- defaults to cwd
 - `--cargo-home <path>` -- defaults to `$HOME/.cargo`
 - `--rustc <name>` -- program string in the emitted plan; defaults to `rustc`
-- `--skip-manifest-errors` -- fall back to pkg_id-only metadata when a
-  Cargo.toml can't be loaded (git sources, missing registry caches)
+
+manifest loads are best-effort: when a Cargo.toml can't be found
+(captured plans often reference machines that don't have every dep's
+source on disk), the lowerer warns + falls back to pkg_id-only
+metadata for that unit.
 
 the lowered plan is written to stdout; pipe or redirect.
 

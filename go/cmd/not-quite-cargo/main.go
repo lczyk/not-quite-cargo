@@ -63,11 +63,10 @@ func (c *RunCommand) Execute(_ []string) error {
 // may change between nqc releases. see unit-graph-plan.md at the repo
 // root for the design notes and known limitations.
 type LowerCommand struct {
-	Target       string `long:"target" description:"Rust target triple the plan will run on; drives both the host info on the unit-graph side and the CARGO_CFG_* env synthesis (defaults to runtime detection)"`
-	ProjectRoot  string `long:"project-root" description:"Project root used for output paths (defaults to cwd)"`
-	CargoHome    string `long:"cargo-home" description:"CARGO_HOME on the planner (defaults to $HOME/.cargo)"`
-	RustcPath    string `long:"rustc" description:"rustc program name to embed in the plan (defaults to 'rustc')"`
-	SkipManifest bool   `long:"skip-manifest-errors" description:"Fall back to pkg_id-only metadata when a Cargo.toml cannot be loaded"`
+	Target      string `long:"target" description:"Rust target triple the plan will run on; drives both the host info on the unit-graph side and the CARGO_CFG_* env synthesis (defaults to runtime detection)"`
+	ProjectRoot string `long:"project-root" description:"Project root used for output paths (defaults to cwd)"`
+	CargoHome   string `long:"cargo-home" description:"CARGO_HOME on the planner (defaults to $HOME/.cargo)"`
+	RustcPath   string `long:"rustc" description:"rustc program name to embed in the plan (defaults to 'rustc')"`
 
 	Args struct {
 		UnitGraph string `positional-arg-name:"unit-graph.json" description:"Input unit-graph JSON"`
@@ -94,12 +93,17 @@ func (c *LowerCommand) Execute(_ []string) error {
 	}
 
 	out, err := unitgraph.Lower(ug, unitgraph.LowerOptions{
-		HostTriple:         target,
-		Cfg:                cfg,
-		CargoHome:          c.CargoHome,
-		ProjectRoot:        root,
-		RustcPath:          c.RustcPath,
-		SkipManifestErrors: c.SkipManifest,
+		HostTriple:  target,
+		Cfg:         cfg,
+		CargoHome:   c.CargoHome,
+		ProjectRoot: root,
+		RustcPath:   c.RustcPath,
+		// Manifest loads are best-effort by design: a fully-captured
+		// plan often references registry crates whose source tree isn't
+		// present on the consumer machine, and a hard failure there is
+		// unhelpful. Failures fall back to pkg_id-only metadata + a
+		// warning per unit.
+		SkipManifestErrors: true,
 	})
 	if err != nil {
 		return err
