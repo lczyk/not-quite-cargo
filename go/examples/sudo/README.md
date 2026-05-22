@@ -13,9 +13,9 @@ links against `libpam`), then a final prove step in a fresh
 `ubuntu:24.04`:
 
 1. **planner** -- has cargo + rustc. clones sudo-rs at a pinned tag, runs
-   `cargo build -Z unstable-options --build-plan > build_plan.json` (with
+   `cargo build -Z unstable-options --build-plan > build-plan.json` (with
    `RUSTC_BOOTSTRAP=1` to unlock `-Z` on stable cargo), then
-   `not-quite-cargo patch build_plan.json`.
+   `not-quite-cargo patch build-plan.json`.
 2. **runner** -- same image but cargo is deleted from `PATH` and the network
    is off (`--network=none`). consumes the patched plan via
    `not-quite-cargo run`.
@@ -40,26 +40,31 @@ binaries from rustc alone.
 ## run
 
 ```
-./demo.sh
+make all        # full pipeline (image -> binary -> clone -> plan -> run -> prove)
+make help       # list every target
 ```
+
+individual stages: `make image`, `make binary`, `make clone`, `make plan`,
+`make run`, `make prove`. each depends on its predecessors, so
+`make prove` from a clean tree runs the lot.
 
 artefacts land in `work/`:
 
 - `work/not-quite-cargo` -- the cross-built binary that's mounted into the
   containers
 - `work/sudo-rs/` -- the shallow clone
-- `work/sudo-rs/build_plan.json` -- patched plan
+- `work/sudo-rs/build-plan.json` -- patched plan
 - `work/sudo-rs/target/.../sudo` (etc.) -- the rust artefacts built without cargo
 - `work/cargo-home/` -- registry / git caches populated by the planner stage,
   mounted read-only into the runner
 
 ## flags
 
-- `SUDO_RS_REF=<tag-or-sha>` -- override the pinned sudo-rs revision
-  (default: `v0.2.3`).
-- `DOCKER=podman` -- use podman instead.
-- `DEMO_SHELL=1` -- drop into a shell inside the runner container instead
-  of running the build. useful for poking around.
+- `SUDO_RS_REF=<tag-or-sha> make all` -- override the pinned sudo-rs
+  revision (default: `v0.2.3`).
+- `DOCKER=podman make all` -- use podman instead.
+- `make shell` -- drop into a bash in the build image for poking
+  around.
 
 ## notes
 
