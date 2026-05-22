@@ -13,7 +13,7 @@ DOCKER             ?= docker
 DEMO_IMAGE         ?= nqc-fd-jemalloc-demo:1.85-24.04
 PLAN_IMAGE         ?= nqc-fd-jemalloc-plan:1.85-24.04
 FD_REPO            ?= https://github.com/sharkdp/fd.git
-PROVE_IMAGE        ?= ubuntu:24.04
+PROVE_IMAGE        ?= docker.io/ubuntu:24.04
 
 SCRIPT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 GO_ROOT    := $(SCRIPT_DIR)/../..

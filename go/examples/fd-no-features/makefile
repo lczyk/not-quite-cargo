@@ -15,9 +15,9 @@
 
 FD_REF             ?= v10.2.0
 DOCKER             ?= docker
-IMAGE              ?= ubuntu/rust:1.85-24.04_edge
+IMAGE              ?= docker.io/ubuntu/rust:1.85-24.04_edge
 FD_REPO            ?= https://github.com/sharkdp/fd.git
-PROVE_IMAGE        ?= ubuntu:24.04
+PROVE_IMAGE        ?= docker.io/ubuntu:24.04
 
 SCRIPT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 GO_ROOT    := $(SCRIPT_DIR)/../..

@@ -4,7 +4,7 @@
 #
 # Reused for both the plan stage (cargo kept) and the run stage (cargo
 # removed) via REMOVE_CARGO. fd v10.2.0 needs rustc >= 1.77.2.
-FROM ubuntu/rust:1.85-24.04_edge
+FROM docker.io/ubuntu/rust:1.85-24.04_edge
 
 RUN set -eux; \
     apt-get update; \

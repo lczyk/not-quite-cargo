@@ -15,9 +15,9 @@
 SUDO_RS_REF        ?= v0.2.3
 DOCKER             ?= docker
 DEMO_IMAGE         ?= nqc-sudo-ug-demo:1.93-26.04
-PLAN_IMAGE         ?= ubuntu/rust:1.93-26.04_edge
+PLAN_IMAGE         ?= docker.io/ubuntu/rust:1.93-26.04_edge
 SUDO_RS_REPO       ?= https://github.com/trifectatechfoundation/sudo-rs.git
-PROVE_IMAGE        ?= ubuntu:26.04
+PROVE_IMAGE        ?= docker.io/ubuntu:26.04
 
 SCRIPT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 GO_ROOT    := $(SCRIPT_DIR)/../..

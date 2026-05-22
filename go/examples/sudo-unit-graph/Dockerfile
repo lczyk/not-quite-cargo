@@ -1,6 +1,6 @@
 # ubuntu/rust:1.93-26.04_edge + libpam, with cargo deleted
 
-FROM ubuntu/rust:1.93-26.04_edge
+FROM docker.io/ubuntu/rust:1.93-26.04_edge
 
 # download .debs for libpam + transitive runtime deps, then cherry-pick
 # only the .so.
