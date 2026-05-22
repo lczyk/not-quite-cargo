@@ -1,0 +1,35 @@
+{
+    "inputs": [
+        "/proj/root/Cargo.toml",
+        "/proj/root/src/main.rs"
+    ],
+    "invocations": [
+        {
+            "package_name": "hello",
+            "package_version": "0.1.0",
+            "target_kind": ["bin"],
+            "kind": null,
+            "compile_mode": "build",
+            "deps": [],
+            "outputs": ["/proj/root/target/debug/hello"],
+            "links": {},
+            "program": "rustc",
+            "args": [
+                "--edition=2021",
+                "--crate-name", "hello",
+                "/proj/root/src/main.rs",
+                "--diagnostic-width=120",
+                "-L", "/proj/root/target/debug/deps",
+                "--out-dir", "/proj/root/target/debug/deps"
+            ],
+            "env": {
+                "CARGO": "/cargo/home/bin/cargo",
+                "CARGO_HOME": "/cargo/home",
+                "PROJECT_ROOT": "/proj/root",
+                "RUSTC": "/some/rustc",
+                "CARGO_PKG_NAME": "hello"
+            },
+            "cwd": "/proj/root"
+        }
+    ]
+}

@@ -1,0 +1,37 @@
+{
+    "inputs": [
+        "{{PROJECT_ROOT}}/Cargo.toml",
+        "{{PROJECT_ROOT}}/src/main.rs"
+    ],
+    "invocations": [
+        {
+            "args": [
+                "--edition=2021",
+                "--crate-name",
+                "hello",
+                "{{PROJECT_ROOT}}/src/main.rs",
+                "-L",
+                "{{PROJECT_ROOT}}/target/debug/deps",
+                "--out-dir",
+                "{{PROJECT_ROOT}}/target/debug/deps"
+            ],
+            "compile_mode": "build",
+            "cwd": "{{PROJECT_ROOT}}",
+            "deps": [],
+            "env": {
+                "CARGO_PKG_NAME": "hello"
+            },
+            "kind": null,
+            "links": {},
+            "outputs": [
+                "{{PROJECT_ROOT}}/target/debug/hello"
+            ],
+            "package_name": "hello",
+            "package_version": "0.1.0",
+            "program": "{{RUSTC}}",
+            "target_kind": [
+                "bin"
+            ]
+        }
+    ]
+}
