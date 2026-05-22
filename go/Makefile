@@ -31,6 +31,17 @@ lint:  ## go vet + gofmt check (no writes)
 fmt:  ## gofmt the tree in place
 	gofmt -s -w ./cmd ./cargo
 
+.PHONY: cover
+cover:  ## Coverage profile + HTML report (cover.out, cover.html)
+	go test -coverpkg=./... -coverprofile=cover.out -race ./...
+	go tool cover -func=cover.out
+	go tool cover -html=cover.out -o cover.html
+
+.PHONY: cover-open
+cover-open: cover  ## Run coverage and open the HTML report in a browser
+	go tool cover -html=cover.out
+
 .PHONY: clean
 clean:  ## Remove build artifacts
 	rm -rf ./bin
+	rm -f cover.out cover.html
