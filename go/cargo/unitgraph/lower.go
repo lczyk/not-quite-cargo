@@ -96,15 +96,18 @@ func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
 		return nil, fmt.Errorf("lower: RustcPath is required")
 	}
 
-	// Project root + cargo home are auto-derived from the unit-graph
-	// when not explicitly provided. The unit-graph encodes them in
-	// pkg_ids (path+file:// for the workspace, registry source paths
-	// for fetched crates).
+	// Project root, cargo home, and registry index dir are auto-derived
+	// from the unit-graph when not explicitly provided. The unit-graph
+	// encodes them in pkg_ids (path+file:// for the workspace) and in
+	// registry crates' src_paths (cargo home + registry index segment).
 	if opt.ProjectRoot == "" {
 		opt.ProjectRoot = deriveProjectRoot(ug)
 	}
 	if opt.CargoHome == "" {
 		opt.CargoHome = deriveCargoHome(ug)
+	}
+	if opt.RegistryIndex == "" {
+		opt.RegistryIndex = deriveRegistryIndex(ug)
 	}
 
 	out := &LowerOutput{
@@ -514,6 +517,29 @@ func deriveCargoHome(ug *UnitGraph) string {
 			continue
 		}
 		return src[:idx]
+	}
+	return ""
+}
+
+// deriveRegistryIndex extracts the content-addressed index subdir name
+// from any registry+ unit's src_path. cargo's layout is
+// <CARGO_HOME>/registry/src/<index-name>/<crate>-<version>/...; we want
+// "<index-name>" so the lowerer can splice it back into manifest dirs.
+func deriveRegistryIndex(ug *UnitGraph) string {
+	const marker = "/registry/src/"
+	for i := range ug.Units {
+		src := ug.Units[i].Target.SrcPath
+		idx := strings.Index(src, marker)
+		if idx < 0 {
+			continue
+		}
+		// First path segment after /registry/src/.
+		rest := src[idx+len(marker):]
+		end := strings.Index(rest, "/")
+		if end <= 0 {
+			continue
+		}
+		return rest[:end]
 	}
 	return ""
 }

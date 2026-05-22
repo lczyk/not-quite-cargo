@@ -168,7 +168,8 @@ func TestLower_DerivesProjectRootFromUnitGraph(t *testing.T) {
 
 func TestLower_DerivesCargoHomeFromUnitGraph(t *testing.T) {
 	// A registry src_path under /home/u/.cargo-custom/registry/src/...
-	// should yield CargoHome = /home/u/.cargo-custom.
+	// should yield CargoHome = /home/u/.cargo-custom and the index dir
+	// = "myindex-abc123" (auto-derived from the same path).
 	ug := &UnitGraph{
 		Version: 1,
 		Units: []Unit{
@@ -181,7 +182,7 @@ func TestLower_DerivesCargoHomeFromUnitGraph(t *testing.T) {
 			},
 			{
 				PkgID:   "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.0",
-				Target:  UnitTarget{Kind: []string{"lib"}, CrateTypes: []string{"lib"}, Name: "serde", SrcPath: "/home/u/.cargo-custom/registry/src/index/serde-1.0.0/src/lib.rs", Edition: "2018"},
+				Target:  UnitTarget{Kind: []string{"lib"}, CrateTypes: []string{"lib"}, Name: "serde", SrcPath: "/home/u/.cargo-custom/registry/src/myindex-abc123/serde-1.0.0/src/lib.rs", Edition: "2018"},
 				Profile: UnitProfile{Name: "dev", OptLevel: "0", DebugAssertions: true, OverflowChecks: true, Panic: "unwind", Debuginfo: float64(2)},
 				Mode:    "build",
 			},
@@ -192,9 +193,11 @@ func TestLower_DerivesCargoHomeFromUnitGraph(t *testing.T) {
 		RustcPath: "rustc",
 	})
 	assert.NoError(t, err)
-	// CARGO_MANIFEST_DIR for the registry crate should use the derived cargo home.
+	// CARGO_MANIFEST_DIR for the registry crate should include both the
+	// derived cargo home AND the index subdir name.
 	libInv := out.Invocations[1]
-	assert.ContainsString(t, libInv.Env["CARGO_MANIFEST_DIR"], "/home/u/.cargo-custom/registry/src/")
+	assert.ContainsString(t, libInv.Env["CARGO_MANIFEST_DIR"],
+		"/home/u/.cargo-custom/registry/src/myindex-abc123/serde-1.0.0")
 }
 
 func TestLoadUnitGraph_RoundTrip(t *testing.T) {
