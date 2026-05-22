@@ -49,9 +49,9 @@ func (c *RunCommand) Execute(_ []string) error {
 }
 
 func logConfig(cfg *cargo.Config) {
-	log.Printf("PROJECT_ROOT: %s", cfg.ProjectRoot)
-	log.Printf("CARGO_HOME:   %s", cfg.CargoHome)
-	log.Printf("RUSTC:        %s", cfg.RustcPath)
+	cfg.Logger.Infof("PROJECT_ROOT: %s", cfg.ProjectRoot)
+	cfg.Logger.Infof("CARGO_HOME:   %s", cfg.CargoHome)
+	cfg.Logger.Infof("RUSTC:        %s", cfg.RustcPath)
 }
 
 func main() {
