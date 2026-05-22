@@ -83,7 +83,7 @@ func (c *BuildCommand) Execute(_ []string) error {
 	// the cargo home. Lower handles the derivation when these are empty
 	// in opts.
 	out, err := unitgraph.Lower(ug, unitgraph.LowerOptions{
-		Target:    unitgraph.Target{OS: c.OS, Arch: c.Arch, Libc: c.Libc},
+		Target:    unitgraph.Target{OS: c.OS, Arch: normaliseArch(c.Arch), Libc: c.Libc},
 		RustcPath: c.RustcPath,
 	})
 	if err != nil {
@@ -107,6 +107,20 @@ func (c *BuildCommand) Execute(_ []string) error {
 	}
 	log.Printf("lowered %d units", len(out.Invocations))
 	return nil
+}
+
+// normaliseArch accepts a few common spelling aliases (arm64 / amd64
+// from Go / Docker world) and maps them to the rust-canonical names.
+// Other inputs pass through and let Target.Validate reject them.
+func normaliseArch(a string) string {
+	switch a {
+	case "arm64":
+		return "aarch64"
+	case "amd64":
+		return "x86_64"
+	default:
+		return a
+	}
 }
 
 func logConfig(cfg *cargo.Config) {
