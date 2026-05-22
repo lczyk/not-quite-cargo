@@ -172,6 +172,28 @@ func assertAdjacent(t *testing.T, args []string, a, b string) {
 	t.Errorf("expected adjacent (%q, %q) in args, got: %v", a, b, args)
 }
 
+func TestRustcArgs_ProcMacroAddsExtern(t *testing.T) {
+	// Proc-macro crates need an explicit --extern proc_macro to access
+	// the builtin proc_macro crate that rustc provides.
+	u := sampleUnit()
+	u.Target.Kind = []string{"proc-macro"}
+	u.Target.CrateTypes = []string{"proc-macro"}
+	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p"})
+	assert.NoError(t, err)
+	assertAdjacent(t, args, "--extern", "proc_macro")
+}
+
+func TestRustcArgs_NonProcMacroNoExtern(t *testing.T) {
+	u := sampleUnit()
+	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p"})
+	assert.NoError(t, err)
+	for i, a := range args {
+		if a == "--extern" && i+1 < len(args) && args[i+1] == "proc_macro" {
+			t.Errorf("non-proc-macro must not get --extern proc_macro")
+		}
+	}
+}
+
 func TestRustcArgs_CapLints(t *testing.T) {
 	// Non-primary (registry) packages get --cap-lints warn so their
 	// #![deny(...)] settings don't error out the local build.

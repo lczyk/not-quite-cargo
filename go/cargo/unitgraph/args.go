@@ -101,6 +101,13 @@ func RustcArgs(in ArgsInputs) ([]string, error) {
 		args = append(args, "--extern", e.Name+"="+e.Path)
 	}
 
+	// Proc-macro crates need an explicit `--extern proc_macro` (no path;
+	// rustc supplies the builtin). cargo emits this for any unit whose
+	// crate-type contains "proc-macro"; mirror that.
+	if u.IsProcMacro() {
+		args = append(args, "--extern", "proc_macro")
+	}
+
 	// Custom-build units compile build.rs as a host binary; cargo also
 	// emits --cfg 'feature="..."' here, but we feed features through
 	// the features list further up. Nothing build-script specific to add.
