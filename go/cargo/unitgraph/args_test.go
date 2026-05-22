@@ -116,6 +116,18 @@ func TestRustcArgs_ProfileReleaseOptLevel(t *testing.T) {
 	assertAdjacent(t, args, "-C", "overflow-checks=off")
 }
 
+func TestRustcArgs_FeaturesAsCfg(t *testing.T) {
+	// Enabled features must become --cfg feature="<name>" so source-side
+	// #[cfg(feature = "...")] gates evaluate correctly. Regression for
+	// the multi-crate case where deps relied on feature-gated modules.
+	u := sampleUnit()
+	u.Features = []string{"std", "alloc"}
+	args, err := RustcArgs(ArgsInputs{Unit: u, Hash: "h", DepsDir: "/p"})
+	assert.NoError(t, err)
+	assertAdjacent(t, args, "--cfg", `feature="alloc"`)
+	assertAdjacent(t, args, "--cfg", `feature="std"`)
+}
+
 func TestRustcArgs_NoIncremental(t *testing.T) {
 	// Regression: rustc rejects bare "-C incremental"; it requires a
 	// path. We deliberately omit the flag (non-incremental builds) until

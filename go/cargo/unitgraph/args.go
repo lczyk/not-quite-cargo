@@ -56,6 +56,15 @@ func RustcArgs(in ArgsInputs) ([]string, error) {
 	// Profile-driven codegen flags.
 	args = append(args, profileFlags(u.Profile)...)
 
+	// Enabled features as --cfg flags. Cargo emits one --cfg per feature
+	// in the form `feature="<name>"` so source-side `#[cfg(feature =
+	// "x")]` evaluates correctly. Sorted for stable output.
+	features := append([]string(nil), u.Features...)
+	sort.Strings(features)
+	for _, f := range features {
+		args = append(args, "--cfg", fmt.Sprintf(`feature="%s"`, f))
+	}
+
 	// Metadata + extra-filename get the same hash so dependents can find
 	// the artefact.
 	args = append(args, "-C", "metadata="+in.Hash)
