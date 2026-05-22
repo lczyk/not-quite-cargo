@@ -63,17 +63,21 @@ $(SUDO_RS_DIR):
 	git -c advice.detachedHead=false clone --depth 1 --branch $(SUDO_RS_REF) $(SUDO_RS_REPO) $(SUDO_RS_DIR)
 
 .PHONY: plan
-plan: binary clone  ## cargo --unit-graph + nqc build + nqc patch
-	@echo "[demo] planner: cargo --unit-graph + nqc build + nqc patch"
+plan: binary clone  ## cargo --unit-graph (container) + nqc build + nqc patch (host)
+	@echo "[demo] planner: cargo --unit-graph in container"
+	mkdir -p $(WORKDIR)/cargo-home
 	$(DOCKER) run --rm \
 		--platform=linux/$(HOST_ARCH) \
 		--volume $(SUDO_RS_DIR):/work \
-		--volume $(BINARY):/usr/local/bin/not-quite-cargo:ro \
 		--volume $(WORKDIR)/cargo-home:/cargo-home \
-		--volume $(SCRIPT_DIR)/plan.sh:/plan.sh:ro \
 		--workdir /work \
-		-e CARGO_HOME=/cargo-home -e RUSTC_BOOTSTRAP=1 -e NQC_ARCH=$(NQC_ARCH) \
-		$(PLAN_IMAGE) exec sh -c 'cd /work; sh /plan.sh'
+		-e CARGO_HOME=/cargo-home -e RUSTC_BOOTSTRAP=1 \
+		$(PLAN_IMAGE) exec sh -c 'set -e; cargo build -j1 -Z unstable-options --unit-graph > unit-graph.json'
+	@echo "[demo] planner: nqc build + patch on host"
+	cd $(GO_ROOT) && go run ./cmd/not-quite-cargo build \
+		--os linux --arch $(NQC_ARCH) --libc gnu \
+		$(SUDO_RS_DIR)/unit-graph.json > $(SUDO_RS_DIR)/build-plan.json
+	cd $(GO_ROOT) && go run ./cmd/not-quite-cargo patch $(SUDO_RS_DIR)/build-plan.json
 
 .PHONY: run
 run: image binary plan  ## execute the patched plan, no cargo, no network

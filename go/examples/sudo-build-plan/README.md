@@ -1,78 +1,12 @@
 # sudo-rs compilation demo
 
 end-to-end demo of building [sudo-rs](https://github.com/trifectatechfoundation/sudo-rs)
-without cargo on the build machine -- only on the planner machine. uses the
-go version of not-quite-cargo.
+without cargo in the build host, only on the machine on which we plan the build
 
-## what it does
+rust depends on `libpam0g-dev` which we need to supply somehow. we could just built it outside od the containter but, for convenience, here we pre-built the build image, drop `libpam0g-dev` libs (and all transitive deps) into the right place on the filesystem and, jsut to not have any aces in one's sleeve, remove `cargo` binary.
 
-four steps: a one-time base-image build, two docker stages against
-that image (`nqc-sudo-demo:1.75-24.04` =
-`ubuntu/rust:1.75-24.04_stable` + `libpam0g-dev`, needed b/c sudo-rs
-links against `libpam`), then a final prove step in a fresh
-`ubuntu:24.04`:
+planing then happens in upstream `ubuntu/rust:1.75-24.04` (rock). it uses that image's `cargo build -Z unstable-options --build-plan > build-plan.json`. then we run `not-quite-cargo patch build-plan.json` on it (on the host) to patch out build-specific paths / variables and drop it into the pre-built build image -- without cargo but with `nqc` -- which we also deprived of a network bridge just to make sure nothing touches network and... it builds(!)...
 
-1. **planner** -- has cargo + rustc. clones sudo-rs at a pinned tag, runs
-   `cargo build -Z unstable-options --build-plan > build-plan.json` (with
-   `RUSTC_BOOTSTRAP=1` to unlock `-Z` on stable cargo), then
-   `not-quite-cargo patch build-plan.json`.
-2. **runner** -- same image but cargo is deleted from `PATH` and the network
-   is off (`--network=none`). consumes the patched plan via
-   `not-quite-cargo run`.
+ok, just because it does not fail does not mean it works. let's then proove it works by dropping the compiled binary into *yet another* image ( this time `ubuntu:24.04` ) set up all the "correct" sudo config like `root ALL=(ALL:ALL) NOPASSWD: ALL` and we get `sudo whoami | grep -F root` passing.
 
-if cargo's absence in stage 2 caused the build to fail, the demo would
-exit with a non-zero status. instead the runner produces the sudo-rs
-binaries from rustc alone.
-
-3. **prove** -- spin up `ubuntu:24.04` (no rust toolchain at all,
-   network off). copy the built `sudo` binary in, set the setuid bit,
-   drop a minimal `/etc/sudoers` (root NOPASSWD) and a permissive
-   `/etc/pam.d/sudo`, then run `sudo whoami`. it should print
-   `root` -- proving the binary actually executes + elevates in a
-   stock distro env.
-
-## prerequisites
-
-- docker (or set `DOCKER=podman`)
-- go (the binary is cross-built for `linux/$arch` from the go/ source tree)
-- git
-
-## run
-
-```
-make all        # full pipeline (image -> binary -> clone -> plan -> run -> prove)
-make help       # list every target
-```
-
-individual stages: `make image`, `make binary`, `make clone`, `make plan`,
-`make run`, `make prove`. each depends on its predecessors, so
-`make prove` from a clean tree runs the lot.
-
-artefacts land in `work/`:
-
-- `work/not-quite-cargo` -- the cross-built binary that's mounted into the
-  containers
-- `work/sudo-rs/` -- the shallow clone
-- `work/sudo-rs/build-plan.json` -- patched plan
-- `work/sudo-rs/target/.../sudo` (etc.) -- the rust artefacts built without cargo
-- `work/cargo-home/` -- registry / git caches populated by the planner stage,
-  mounted read-only into the runner
-
-## flags
-
-- `SUDO_RS_REF=<tag-or-sha> make all` -- override the pinned sudo-rs
-  revision (default: `v0.2.3`).
-- `DOCKER=podman make all` -- use podman instead.
-- `make shell` -- drop into a bash in the build image for poking
-  around.
-
-## notes
-
-- the work/ tree is gitignored. delete it to restart from scratch.
-- the `target/` dir inside sudo-rs is created by `cargo build --build-plan`
-  even though no compilation has happened yet. the runner stage fills it.
-- network is disabled in the runner stage to demonstrate that the patched
-  plan is genuinely self-contained -- no crates.io fetches happen.
-- the demo image is built once and cached locally; delete with
-  `docker image rm nqc-sudo-demo:1.75-24.04` to force a rebuild (e.g. after
-  editing the Dockerfile).
+run with `make install`

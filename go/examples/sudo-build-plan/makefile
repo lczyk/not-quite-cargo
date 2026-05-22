@@ -58,15 +58,17 @@ $(SUDO_RS_DIR):
 
 .PHONY: plan
 plan: binary clone  ## generate & patch build-plan.json
-	@echo "[demo] planner: generating + patching build-plan.json"
+	@echo "[demo] planner: generating build-plan.json in container"
+	mkdir -p $(WORKDIR)/cargo-home
 	$(DOCKER) run --rm \
 		--platform=linux/$(HOST_ARCH) \
 		--volume $(SUDO_RS_DIR):/work \
-		--volume $(BINARY):/usr/local/bin/not-quite-cargo:ro \
 		--volume $(WORKDIR)/cargo-home:/cargo-home \
 		--workdir /work \
 		-e CARGO_HOME=/cargo-home -e RUSTC_BOOTSTRAP=1 \
-		$(PLAN_IMAGE) exec sh -c 'set -e; cd /work; mkdir -p /cargo-home; cargo build -j1 -Z unstable-options --build-plan > build-plan.json; not-quite-cargo patch build-plan.json'
+		$(PLAN_IMAGE) exec sh -c 'set -e; cargo build -j1 -Z unstable-options --build-plan > build-plan.json'
+	@echo "[demo] planner: patching build-plan.json on host"
+	cd $(GO_ROOT) && go run ./cmd/not-quite-cargo patch $(SUDO_RS_DIR)/build-plan.json
 
 .PHONY: run
 run: image binary plan  ## execute the patched plan, no cargo, no network
