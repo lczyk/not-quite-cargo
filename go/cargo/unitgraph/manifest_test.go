@@ -73,6 +73,65 @@ func TestLoadManifest_BadTOML(t *testing.T) {
 	assert.Error(t, err, "parse")
 }
 
+func TestLoadManifest_WorkspaceInheritance(t *testing.T) {
+	// Workspace root with [workspace.package], plus a member crate that
+	// inherits version + authors via `<field>.workspace = true`.
+	dir := t.TempDir()
+	wsRoot := filepath.Join(dir, "Cargo.toml")
+	assert.NoError(t, os.WriteFile(wsRoot, []byte(`
+[workspace]
+members = ["a"]
+
+[workspace.package]
+version = "1.2.3"
+authors = ["Alice", "Bob"]
+license = "MIT"
+`), 0o644))
+	memberDir := filepath.Join(dir, "a")
+	assert.NoError(t, os.MkdirAll(memberDir, 0o755))
+	memberManifest := filepath.Join(memberDir, "Cargo.toml")
+	assert.NoError(t, os.WriteFile(memberManifest, []byte(`
+[package]
+name = "a"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+`), 0o644))
+
+	got, err := LoadManifest(memberManifest)
+	assert.NoError(t, err)
+	assert.Equal(t, got.Name, "a")
+	assert.Equal(t, got.Version, "1.2.3", "version inherited from workspace")
+	assert.Equal(t, got.License, "MIT", "license inherited from workspace")
+	assert.EqualArrays(t, got.Authors, []string{"Alice", "Bob"}, "authors inherited from workspace")
+}
+
+func TestLoadManifest_PerCrateOverridesWorkspace(t *testing.T) {
+	// Where the member sets a literal value, it wins over the workspace
+	// default -- inheritance only kicks in when `.workspace = true`.
+	dir := t.TempDir()
+	wsRoot := filepath.Join(dir, "Cargo.toml")
+	assert.NoError(t, os.WriteFile(wsRoot, []byte(`
+[workspace]
+members = ["a"]
+
+[workspace.package]
+version = "1.0.0"
+`), 0o644))
+	memberDir := filepath.Join(dir, "a")
+	assert.NoError(t, os.MkdirAll(memberDir, 0o755))
+	memberManifest := filepath.Join(memberDir, "Cargo.toml")
+	assert.NoError(t, os.WriteFile(memberManifest, []byte(`
+[package]
+name = "a"
+version = "2.0.0"
+`), 0o644))
+
+	got, err := LoadManifest(memberManifest)
+	assert.NoError(t, err)
+	assert.Equal(t, got.Version, "2.0.0", "per-crate version wins")
+}
+
 func TestLoadManifestForPkg_Path(t *testing.T) {
 	dir := t.TempDir()
 	manifest := filepath.Join(dir, "Cargo.toml")
