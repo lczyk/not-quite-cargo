@@ -3,6 +3,64 @@
 worked out via `/grill-me`. captures every decision so we can implement
 without re-litigating each branch.
 
+## status
+
+shipped on the `unit-graph` branch. all seven planned commits + nine
+follow-up validation-driven fixes have landed.
+
+end-to-end validated on real crates (all locally, lower + run, binary
+runs and behaves):
+
+- hello world (1 unit, no deps)
+- once_cell user (2 units, default features)
+- bs-test (3 units, build.rs emitting rustc-cfg directive)
+- pm-test (16 units, full serde derive chain incl. proc-macro2 +
+  quote + syn + serde_derive + serde + build scripts)
+- **fd v10.2.0 (77 units, full real-world crate with clap proc
+  macros, multiple build scripts, large transitive DAG) -- the
+  flagship target. `fd --version` reports `fd 10.2.0`.**
+
+real fd unit-graph fixture committed at
+`go/cargo/unitgraph/testdata/fd/ug.json` (path-anonymised, ~96K). the
+ground-truth `build-plan.json` from cargo is not committed yet b/c
+cargo 1.93+ removed `--build-plan`; refresh requires docker + the
+existing `capture.sh` against `rust:1.84`.
+
+sudo-rs (the plan's stated MVP target) compiles on linux only; on macOS
+both cargo + our lower path fail identically on missing
+linux-specific libc symbols. demo's docker flow remains the route
+there.
+
+bugs found + fixed during validation (each its own commit):
+
+1. `-C key=value` flags joined into single argv element -- rustc
+   rejected the embedded space. now `(-C, key=value)` pair.
+2. `-C incremental` emitted bare -- rustc requires a path. dropped
+   then later (this iteration) re-added with a proper per-unit
+   `target/<profile>/incremental/<crate>-<hash>` directory.
+3. enabled features not forwarded as `--cfg feature="<name>"`.
+4. build-script binary path off because target name has hyphens but
+   rustc canonicalises to underscores.
+5. depIsCompileBuildScript heuristic broke after #4 -- replaced
+   path-based detection with an explicit unit-graph-derived flag.
+6. `--cap-lints warn` missing for non-primary packages -- their
+   `#![deny(...)]` settings poisoned the local build.
+7. `OUT_DIR` not propagated from build-script-run to package compile
+   -- crates including `include!(env!("OUT_DIR"))` blew up.
+8. proc-macro dylib extension wrong on darwin -- Platform field was
+   driving both directory layout and file extension; split into
+   `Platform` and `ExtPlatform`.
+9. workspace inheritance (`field.workspace = true`) -- manifest
+   loader now walks up for the workspace root and resolves
+   inheritable fields.
+10. build-script `CARGO_FEATURE_*` env taken from the package's
+    compile unit features, not the (empty) run-custom-build unit.
+11. `--extern proc_macro` missing for proc-macro crates -- rustc's
+    `--crate-type proc-macro` doesn't auto-inject the extern.
+
+if any of these surface again, the commit message of the matching
+fix is the place to start.
+
 ## why
 
 cargo 1.93.0 removed `--build-plan` ([rust-lang/cargo#16212][pr]). the only
