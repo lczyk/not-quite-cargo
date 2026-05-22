@@ -63,9 +63,11 @@ func (c *RunCommand) Execute(_ []string) error {
 // may change between nqc releases. see unit-graph-plan.md at the repo
 // root for the design notes and known limitations.
 type LowerCommand struct {
-	Target      string `long:"target" description:"Rust target triple the plan will run on; drives both the host info on the unit-graph side and the CARGO_CFG_* env synthesis (defaults to runtime detection)"`
+	OS          string `long:"os" description:"Target OS (linux, macos, windows, freebsd, ...); defaults to host"`
+	Arch        string `long:"arch" description:"Target arch (x86_64, aarch64, i686, ...); defaults to host"`
+	Env         string `long:"env" description:"Target libc env (gnu, musl, msvc); empty picks a default from --os"`
 	ProjectRoot string `long:"project-root" description:"Project root used for output paths (defaults to cwd)"`
-	CargoHome   string `long:"cargo-home" description:"CARGO_HOME on the planner (defaults to $HOME/.cargo)"`
+	CargoHome   string `long:"cargo-home" description:"CARGO_HOME path spliced into manifest dirs (no file lookups)"`
 	RustcPath   string `long:"rustc" description:"rustc program name to embed in the plan (defaults to 'rustc')"`
 
 	Args struct {
@@ -79,11 +81,13 @@ func (c *LowerCommand) Execute(_ []string) error {
 		return err
 	}
 
-	target := c.Target
-	if target == "" {
-		target = detectHostTriple()
+	tgt := unitgraph.Target{OS: c.OS, Arch: c.Arch, Env: c.Env}
+	if tgt.OS == "" {
+		tgt.OS = hostOS()
 	}
-	cfg := unitgraph.CfgFromTriple(target)
+	if tgt.Arch == "" {
+		tgt.Arch = hostArch()
+	}
 
 	root := c.ProjectRoot
 	if root == "" {
@@ -93,8 +97,7 @@ func (c *LowerCommand) Execute(_ []string) error {
 	}
 
 	out, err := unitgraph.Lower(ug, unitgraph.LowerOptions{
-		HostTriple:  target,
-		Cfg:         cfg,
+		Target:      tgt,
 		CargoHome:   c.CargoHome,
 		ProjectRoot: root,
 		RustcPath:   c.RustcPath,
@@ -122,26 +125,27 @@ func (c *LowerCommand) Execute(_ []string) error {
 	return nil
 }
 
-// detectHostTriple returns the rust-style target triple for the current
-// process. Falls back to "<arch>-unknown-<os>" if the OS-specific
-// vendor + libc bits aren't determinable.
-func detectHostTriple() string {
-	arch := runtime.GOARCH
-	switch arch {
-	case "amd64":
-		arch = "x86_64"
-	case "arm64":
-		arch = "aarch64"
-	}
+// hostOS returns the rust target OS string for the current process.
+func hostOS() string {
 	switch runtime.GOOS {
 	case "darwin":
-		return arch + "-apple-darwin"
-	case "linux":
-		return arch + "-unknown-linux-gnu"
-	case "windows":
-		return arch + "-pc-windows-msvc"
+		return "macos"
 	default:
-		return arch + "-unknown-" + runtime.GOOS
+		return runtime.GOOS
+	}
+}
+
+// hostArch returns the rust target arch string for the current process.
+func hostArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+	case "arm64":
+		return "aarch64"
+	case "386":
+		return "i686"
+	default:
+		return runtime.GOARCH
 	}
 }
 

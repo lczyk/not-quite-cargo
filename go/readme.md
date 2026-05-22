@@ -54,18 +54,22 @@ known limitations.
 
 ```
 cargo build -Z unstable-options --unit-graph > ug.json
-./bin/not-quite-cargo lower --target x86_64-unknown-linux-gnu ug.json > build_plan.json
+./bin/not-quite-cargo lower --os linux --arch x86_64 ug.json > build_plan.json
 ./bin/not-quite-cargo patch build_plan.json
 ./bin/not-quite-cargo run build_plan.json
 ```
 
 flags on `lower`:
 
-- `--target <triple>` -- target triple the plan will run on; drives both
-  the host-info side and `CARGO_CFG_*` env synthesis. defaults to
-  runtime detection.
+- `--os <name>` -- target OS (linux, macos, windows, freebsd, ...).
+  defaults to host.
+- `--arch <name>` -- target arch (x86_64, aarch64, ...). defaults to
+  host.
+- `--env <name>` -- target libc env (gnu, musl, msvc). empty picks a
+  default from `--os` (linux -> gnu, windows -> msvc, others -> "").
 - `--project-root <path>` -- defaults to cwd
-- `--cargo-home <path>` -- defaults to `$HOME/.cargo`
+- `--cargo-home <path>` -- spliced into manifest dir paths; no file
+  lookups happen against it
 - `--rustc <name>` -- program string in the emitted plan; defaults to `rustc`
 
 manifest loads are best-effort: when a Cargo.toml can't be found

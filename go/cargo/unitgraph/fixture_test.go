@@ -22,7 +22,7 @@ const (
 // TestFixture_FdLowering loads the captured fd unit-graph fixture,
 // lowers it, and sanity-checks the result.
 //
-// The fixture files (`testdata/fd/{ug,build-plan,host-cfg.txt}`) are
+// The fixture files (`testdata/fd/{unit-graph,build-plan}.json`) are
 // produced by `testdata/fd/capture.sh` against rust:1.84 -- see the
 // README in that dir for provenance. The test is skipped when the
 // fixture isn't present so contributors can land code changes without
@@ -31,7 +31,6 @@ func TestFixture_FdLowering(t *testing.T) {
 	dir := filepath.Join("testdata", "fd")
 	ugPath := filepath.Join(dir, "unit-graph.json")
 	bpPath := filepath.Join(dir, "build-plan.json")
-	cfgPath := filepath.Join(dir, "cfg.txt")
 
 	if _, err := os.Stat(ugPath); os.IsNotExist(err) {
 		t.Skipf("fd fixture not present (run testdata/fd/capture.sh to populate)")
@@ -40,17 +39,11 @@ func TestFixture_FdLowering(t *testing.T) {
 	ug, err := LoadUnitGraph(ugPath)
 	require.NoError(t, err)
 
-	cfgBytes, err := os.ReadFile(cfgPath)
-	require.NoError(t, err)
-	cfg, err := ParseCfg(string(cfgBytes))
-	require.NoError(t, err)
-
 	got, err := Lower(ug, LowerOptions{
-		// The capture container is linux/<host-arch>. We pass a generic
-		// linux triple here; the lowering uses HostTriple only for the
-		// `platform: null` units, none of which need an exact match.
-		HostTriple:  "aarch64-unknown-linux-gnu",
-		Cfg:         cfg,
+		// Capture container is linux/<host-arch>; pass linux + a
+		// representative arch. The lowering uses HostTriple only for
+		// the `platform: null` units, none of which need an exact match.
+		Target:      Target{OS: "linux", Arch: "aarch64"},
 		CargoHome:   fdFixtureCargoHome,
 		ProjectRoot: fdFixtureProjectRoot,
 	})

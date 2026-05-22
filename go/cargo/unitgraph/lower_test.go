@@ -68,15 +68,12 @@ license = "MIT OR Apache-2.0"
 }
 
 func tinyOpts(cargoHome string) LowerOptions {
-	cfg, _ := ParseCfg(`unix
-target_os="linux"
-target_arch="x86_64"`)
 	return LowerOptions{
 		HostTriple:    "x86_64-unknown-linux-gnu",
 		CargoHome:     cargoHome,
 		ProjectRoot:   "/proj",
 		RustcPath:     "/some/rustc",
-		Cfg:           cfg,
+		Target:        Target{OS: "linux", Arch: "x86_64"},
 		RegistryIndex: "index.crates.io-test",
 	}
 }
@@ -124,7 +121,7 @@ func TestLower_TinyGraph(t *testing.T) {
 
 func TestLower_RejectsBadVersion(t *testing.T) {
 	ug := &UnitGraph{Version: 99}
-	_, err := Lower(ug, LowerOptions{HostTriple: "x", Cfg: CfgMap{}})
+	_, err := Lower(ug, LowerOptions{HostTriple: "x", Target: Target{OS: "linux", Arch: "x86_64"}})
 	// Lower doesn't validate version itself (LoadUnitGraph does); it
 	// just processes whatever it's given. The empty Units slice means
 	// no error -- adjust expectation.
@@ -132,13 +129,13 @@ func TestLower_RejectsBadVersion(t *testing.T) {
 }
 
 func TestLower_RequiresHostTriple(t *testing.T) {
-	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{Cfg: CfgMap{}})
-	assert.Error(t, err, "HostTriple is required")
+	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{})
+	assert.Error(t, err, "HostTriple or Target is required")
 }
 
-func TestLower_RequiresCfg(t *testing.T) {
+func TestLower_RequiresTarget(t *testing.T) {
 	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{HostTriple: "x"})
-	assert.Error(t, err, "Cfg is required")
+	assert.Error(t, err, "Target.OS and Target.Arch are required")
 }
 
 func TestLoadUnitGraph_RoundTrip(t *testing.T) {

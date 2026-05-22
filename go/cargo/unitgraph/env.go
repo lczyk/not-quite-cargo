@@ -1,13 +1,13 @@
 package unitgraph
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 )
 
 // PkgMetadata is the slice of a Cargo.toml that drives CARGO_PKG_* env
-// vars. Loaded from manifest.go later; defined here for use in PkgEnv.
+// vars. Lower now populates only Name + Version (from pkg_id); the rest
+// stay empty.
 type PkgMetadata struct {
 	Name        string
 	Version     string // canonical semver, e.g. "1.2.3-rc1"
@@ -21,77 +21,136 @@ type PkgMetadata struct {
 	Readme      string
 }
 
-// CfgMap is the parsed form of `rustc --print cfg`.
+// Target captures the cfg-driving subset of a rust target. OS + Arch
+// are user inputs; everything else (family, env, pointer-width, endian,
+// vendor) derives from those two unless explicitly overridden.
 //
-// A single-element value with an empty string represents a bare boolean
-// cfg key like `unix` or `debug_assertions`. Keys that may carry multiple
-// values (`target_feature`, `target_has_atomic`, ...) accumulate them in
-// order of appearance.
-type CfgMap map[string][]string
-
-// ParseCfg converts the raw stdout of `rustc --print cfg` into a CfgMap.
-//
-// Lines have two shapes:
-//   - bare keys -- e.g. `unix`, `debug_assertions` -- map to a single
-//     empty-string value, indicating presence.
-//   - `key="value"` -- the quotes are required by rustc; we strip them.
-//
-// Blank lines and lines starting with `//` (rustc never emits them but
-// callers sometimes hand us files with comments) are ignored.
-func ParseCfg(text string) (CfgMap, error) {
-	out := CfgMap{}
-	for lineNo, raw := range strings.Split(text, "\n") {
-		line := strings.TrimSpace(raw)
-		if line == "" || strings.HasPrefix(line, "//") {
-			continue
-		}
-		key, value, hasValue := strings.Cut(line, "=")
-		key = strings.TrimSpace(key)
-		if key == "" {
-			return nil, fmt.Errorf("cfg line %d: empty key in %q", lineNo+1, raw)
-		}
-		if !hasValue {
-			out[key] = append(out[key], "")
-			continue
-		}
-		value = strings.TrimSpace(value)
-		// rustc emits values wrapped in double quotes. Strip exactly one
-		// pair if present; reject malformed shapes.
-		switch {
-		case len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"':
-			value = value[1 : len(value)-1]
-		case value == "":
-			// `key=` (empty value) -- accept, treat like bare key.
-		default:
-			return nil, fmt.Errorf("cfg line %d: value not quoted in %q", lineNo+1, raw)
-		}
-		out[key] = append(out[key], value)
-	}
-	return out, nil
+// Replaces the prior CfgMap abstraction. The two fields are what build
+// scripts read 99% of the time; the rest is a deterministic function of
+// them, so we compute on demand rather than ask the user.
+type Target struct {
+	// OS is the lower-case rust target OS (linux, macos, windows,
+	// freebsd, openbsd, netbsd, android, ios, ...).
+	OS string
+	// Arch is the lower-case rust target architecture (x86_64,
+	// aarch64, x86, arm, ...).
+	Arch string
+	// Env optionally overrides the libc env (gnu / musl / msvc); empty
+	// asks Target to pick a sensible default from OS.
+	Env string
 }
 
-// CargoCfgEnv turns a CfgMap into the `CARGO_CFG_*` env-var subset that
-// cargo would set when invoking rustc or a build script.
-//
-// Naming rules (matching cargo):
-//   - key uppercased, hyphens to underscores -> `CARGO_CFG_<KEY>`
-//   - multi-value keys are comma-joined in the order they appeared
-//   - bare keys (no `=value`) get an empty value; presence of the env
-//     var alone signals truth (build scripts check `env::var_os` for
-//     them, not the value)
-func CargoCfgEnv(cfg CfgMap) map[string]string {
-	out := make(map[string]string, len(cfg))
-	for key, values := range cfg {
-		envKey := "CARGO_CFG_" + strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
-		// Collapse "presence only" cfgs (single empty value) to empty
-		// string; otherwise comma-join.
-		if len(values) == 1 && values[0] == "" {
-			out[envKey] = ""
-			continue
+// Triple synthesises a rust target triple like "aarch64-apple-darwin"
+// from OS + Arch. Used to populate TARGET / HOST env vars and as the
+// HostTriple input to Lower.
+func (t Target) Triple() string {
+	switch t.OS {
+	case "macos", "ios":
+		return t.Arch + "-apple-" + t.OS
+	case "windows":
+		env := t.envOr("msvc")
+		return t.Arch + "-pc-windows-" + env
+	case "linux":
+		env := t.envOr("gnu")
+		return t.Arch + "-unknown-linux-" + env
+	default:
+		if t.OS == "" {
+			return t.Arch
 		}
-		out[envKey] = strings.Join(values, ",")
+		return t.Arch + "-unknown-" + t.OS
+	}
+}
+
+// Family returns "unix" / "windows" / "" depending on OS.
+func (t Target) Family() string {
+	switch t.OS {
+	case "linux", "macos", "ios", "android", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos":
+		return "unix"
+	case "windows":
+		return "windows"
+	default:
+		return ""
+	}
+}
+
+// PointerWidth returns "64" / "32" / "" depending on Arch.
+func (t Target) PointerWidth() string {
+	switch t.Arch {
+	case "x86_64", "aarch64", "powerpc64", "powerpc64le", "riscv64", "s390x", "mips64", "mips64el", "loongarch64", "sparc64":
+		return "64"
+	case "i686", "i586", "i386", "x86", "arm", "armv7", "thumbv7em", "riscv32", "mips", "mipsel", "powerpc", "wasm32":
+		return "32"
+	default:
+		return ""
+	}
+}
+
+// Endian returns "big" / "little".
+func (t Target) Endian() string {
+	switch t.Arch {
+	case "powerpc64", "powerpc", "mips", "mips64", "s390x", "sparc64":
+		return "big"
+	default:
+		return "little"
+	}
+}
+
+// Vendor returns the rust target-triple vendor token. Cargo's
+// CARGO_CFG_TARGET_VENDOR uses this.
+func (t Target) Vendor() string {
+	switch t.OS {
+	case "macos", "ios":
+		return "apple"
+	case "windows":
+		return "pc"
+	default:
+		return "unknown"
+	}
+}
+
+func (t Target) envOr(def string) string {
+	if t.Env != "" {
+		return t.Env
+	}
+	return def
+}
+
+// CargoCfgEnv emits the CARGO_CFG_* env-var subset that cargo would set
+// when invoking rustc or a build script for this target.
+//
+// Covers TARGET_OS / _ARCH / _FAMILY / _ENV / _POINTER_WIDTH / _ENDIAN /
+// _VENDOR plus the bare unix/windows cfg key. less-common cfgs (
+// target_feature, target_has_atomic, debug_assertions) are deliberately
+// omitted: they need rustc to enumerate them faithfully, and the
+// experimental flow's planner contract forbids invoking it.
+func (t Target) CargoCfgEnv() map[string]string {
+	out := map[string]string{
+		"CARGO_CFG_TARGET_OS":            t.OS,
+		"CARGO_CFG_TARGET_ARCH":          t.Arch,
+		"CARGO_CFG_TARGET_FAMILY":        t.Family(),
+		"CARGO_CFG_TARGET_ENV":           t.envOr(defaultEnvFor(t.OS)),
+		"CARGO_CFG_TARGET_POINTER_WIDTH": t.PointerWidth(),
+		"CARGO_CFG_TARGET_ENDIAN":        t.Endian(),
+		"CARGO_CFG_TARGET_VENDOR":        t.Vendor(),
+	}
+	switch t.Family() {
+	case "unix":
+		out["CARGO_CFG_UNIX"] = ""
+	case "windows":
+		out["CARGO_CFG_WINDOWS"] = ""
 	}
 	return out
+}
+
+func defaultEnvFor(os string) string {
+	switch os {
+	case "linux", "android":
+		return "gnu"
+	case "windows":
+		return "msvc"
+	default:
+		return ""
+	}
 }
 
 // PkgEnv synthesises the CARGO_PKG_* env vars from a manifest extract.

@@ -6,85 +6,100 @@ import (
 	"github.com/lczyk/assert"
 )
 
-// sample mirrors a real rustc --print cfg snippet for aarch64-apple-darwin
-// (trimmed to keep the test focused on the parser's edge cases).
-const sampleCfg = `debug_assertions
-panic="unwind"
-target_arch="aarch64"
-target_endian="little"
-target_env=""
-target_family="unix"
-target_feature="aes"
-target_feature="crc"
-target_feature="neon"
-target_has_atomic
-target_has_atomic="16"
-target_has_atomic="32"
-target_has_atomic="64"
-target_os="macos"
-target_pointer_width="64"
-target_vendor="apple"
-unix`
-
-func TestParseCfg_AllShapes(t *testing.T) {
-	got, err := ParseCfg(sampleCfg)
-	assert.NoError(t, err)
-	// bare key
-	assert.EqualArrays(t, got["unix"], []string{""})
-	assert.EqualArrays(t, got["debug_assertions"], []string{""})
-	// quoted single value
-	assert.EqualArrays(t, got["target_os"], []string{"macos"})
-	// quoted empty value
-	assert.EqualArrays(t, got["target_env"], []string{""})
-	// repeated key accumulates in order
-	assert.EqualArrays(t, got["target_feature"], []string{"aes", "crc", "neon"})
-	// bare key plus repeated quoted values
-	assert.EqualArrays(t, got["target_has_atomic"], []string{"", "16", "32", "64"})
+func TestTarget_TripleLinux(t *testing.T) {
+	tt := Target{OS: "linux", Arch: "x86_64"}
+	assert.Equal(t, tt.Triple(), "x86_64-unknown-linux-gnu")
 }
 
-func TestParseCfg_EmptyAndComments(t *testing.T) {
-	got, err := ParseCfg("\n// a comment\nunix\n\n\n")
-	assert.NoError(t, err)
-	assert.EqualArrays(t, got["unix"], []string{""})
-	assert.Equal(t, len(got), 1)
+func TestTarget_TripleLinuxMusl(t *testing.T) {
+	tt := Target{OS: "linux", Arch: "aarch64", Env: "musl"}
+	assert.Equal(t, tt.Triple(), "aarch64-unknown-linux-musl")
 }
 
-func TestParseCfg_MalformedValueRejected(t *testing.T) {
-	_, err := ParseCfg(`target_os=macos`) // missing quotes
-	assert.Error(t, err, "not quoted")
+func TestTarget_TripleDarwin(t *testing.T) {
+	tt := Target{OS: "macos", Arch: "aarch64"}
+	assert.Equal(t, tt.Triple(), "aarch64-apple-macos")
 }
 
-func TestParseCfg_EmptyKeyRejected(t *testing.T) {
-	_, err := ParseCfg(`=hi`)
-	assert.Error(t, err, "empty key")
+func TestTarget_TripleWindows(t *testing.T) {
+	tt := Target{OS: "windows", Arch: "x86_64"}
+	assert.Equal(t, tt.Triple(), "x86_64-pc-windows-msvc")
 }
 
-func TestCargoCfgEnv_NamingAndJoining(t *testing.T) {
-	cfg, err := ParseCfg(sampleCfg)
-	assert.NoError(t, err)
-	env := CargoCfgEnv(cfg)
-
-	// boolean cfg present, value empty
-	v, ok := env["CARGO_CFG_UNIX"]
-	assert.That(t, ok)
-	assert.Equal(t, v, "")
-
-	// scalar quoted
-	assert.Equal(t, env["CARGO_CFG_TARGET_OS"], "macos")
-
-	// multi-value comma-joined in order
-	assert.Equal(t, env["CARGO_CFG_TARGET_FEATURE"], "aes,crc,neon")
-
-	// mixed bare + quoted comma-joined incl. empty
-	assert.Equal(t, env["CARGO_CFG_TARGET_HAS_ATOMIC"], ",16,32,64")
+func TestTarget_Family(t *testing.T) {
+	cases := []struct {
+		os   string
+		want string
+	}{
+		{"linux", "unix"},
+		{"macos", "unix"},
+		{"freebsd", "unix"},
+		{"windows", "windows"},
+		{"unknown-os", ""},
+	}
+	for _, c := range cases {
+		assert.Equal(t, (Target{OS: c.os}).Family(), c.want, "os=%s", c.os)
+	}
 }
 
-func TestCargoCfgEnv_HyphenToUnderscore(t *testing.T) {
-	cfg, err := ParseCfg(`has-foo`)
-	assert.NoError(t, err)
-	env := CargoCfgEnv(cfg)
-	_, ok := env["CARGO_CFG_HAS_FOO"]
-	assert.That(t, ok)
+func TestTarget_PointerWidth(t *testing.T) {
+	cases := []struct {
+		arch string
+		want string
+	}{
+		{"x86_64", "64"},
+		{"aarch64", "64"},
+		{"i686", "32"},
+		{"wasm32", "32"},
+		{"weirdarch", ""},
+	}
+	for _, c := range cases {
+		assert.Equal(t, (Target{Arch: c.arch}).PointerWidth(), c.want, "arch=%s", c.arch)
+	}
+}
+
+func TestTarget_Endian(t *testing.T) {
+	assert.Equal(t, (Target{Arch: "x86_64"}).Endian(), "little")
+	assert.Equal(t, (Target{Arch: "powerpc"}).Endian(), "big")
+}
+
+func TestTarget_Vendor(t *testing.T) {
+	assert.Equal(t, (Target{OS: "macos"}).Vendor(), "apple")
+	assert.Equal(t, (Target{OS: "windows"}).Vendor(), "pc")
+	assert.Equal(t, (Target{OS: "linux"}).Vendor(), "unknown")
+}
+
+func TestTarget_CargoCfgEnvLinux(t *testing.T) {
+	tt := Target{OS: "linux", Arch: "x86_64"}
+	env := tt.CargoCfgEnv()
+	assert.Equal(t, env["CARGO_CFG_TARGET_OS"], "linux")
+	assert.Equal(t, env["CARGO_CFG_TARGET_ARCH"], "x86_64")
+	assert.Equal(t, env["CARGO_CFG_TARGET_FAMILY"], "unix")
+	assert.Equal(t, env["CARGO_CFG_TARGET_ENV"], "gnu")
+	assert.Equal(t, env["CARGO_CFG_TARGET_POINTER_WIDTH"], "64")
+	assert.Equal(t, env["CARGO_CFG_TARGET_ENDIAN"], "little")
+	assert.Equal(t, env["CARGO_CFG_TARGET_VENDOR"], "unknown")
+	_, hasUnix := env["CARGO_CFG_UNIX"]
+	assert.That(t, hasUnix)
+	_, hasWindows := env["CARGO_CFG_WINDOWS"]
+	assert.That(t, !hasWindows)
+}
+
+func TestTarget_CargoCfgEnvWindows(t *testing.T) {
+	tt := Target{OS: "windows", Arch: "x86_64"}
+	env := tt.CargoCfgEnv()
+	assert.Equal(t, env["CARGO_CFG_TARGET_FAMILY"], "windows")
+	assert.Equal(t, env["CARGO_CFG_TARGET_ENV"], "msvc")
+	_, hasWindows := env["CARGO_CFG_WINDOWS"]
+	assert.That(t, hasWindows)
+	_, hasUnix := env["CARGO_CFG_UNIX"]
+	assert.That(t, !hasUnix)
+}
+
+func TestTarget_CargoCfgEnvEnvOverride(t *testing.T) {
+	tt := Target{OS: "linux", Arch: "x86_64", Env: "musl"}
+	env := tt.CargoCfgEnv()
+	assert.Equal(t, env["CARGO_CFG_TARGET_ENV"], "musl")
 }
 
 func TestPkgEnv_BasicAndSemverSplit(t *testing.T) {

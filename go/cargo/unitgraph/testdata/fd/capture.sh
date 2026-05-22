@@ -63,7 +63,6 @@ function main() {
                 > /out/unit-graph.json
             cargo build -j1 -Z unstable-options --build-plan \
                 > /out/build-plan.json
-            rustc --print cfg > /out/cfg.txt
         '
 
     if command -v jq >/dev/null 2>&1; then
@@ -76,7 +75,7 @@ function main() {
     fi
 
     _info "captured into ${SCRIPT_DIR}:"
-    ls -lh "${SCRIPT_DIR}/unit-graph.json" "${SCRIPT_DIR}/build-plan.json" "${SCRIPT_DIR}/cfg.txt"
+    ls -lh "${SCRIPT_DIR}/unit-graph.json" "${SCRIPT_DIR}/build-plan.json"
 }
 
 main "$@"

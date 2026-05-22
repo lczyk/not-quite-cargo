@@ -36,9 +36,9 @@ type LowerOptions struct {
 	// RUSTC_LINKER and to rustc via `-C linker=`.
 	RustcLinker string
 
-	// Cfg is the parsed `rustc --print cfg` output for the host
-	// platform. Required so CARGO_CFG_* env vars can be synthesised.
-	Cfg CfgMap
+	// Target describes the platform the build is for. Drives
+	// CARGO_CFG_* env vars and the TARGET / HOST env vars.
+	Target Target
 
 	// RegistryIndex names the index cache subdirectory under
 	// CargoHome/registry/src/ (e.g. "index.crates.io-1949cf8c6b5b557f").
@@ -87,10 +87,13 @@ func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
 		return nil, fmt.Errorf("lower: nil unit-graph")
 	}
 	if opt.HostTriple == "" {
-		return nil, fmt.Errorf("lower: HostTriple is required")
+		opt.HostTriple = opt.Target.Triple()
 	}
-	if opt.Cfg == nil {
-		return nil, fmt.Errorf("lower: Cfg is required")
+	if opt.HostTriple == "" {
+		return nil, fmt.Errorf("lower: HostTriple or Target is required")
+	}
+	if opt.Target.OS == "" || opt.Target.Arch == "" {
+		return nil, fmt.Errorf("lower: Target.OS and Target.Arch are required")
 	}
 	if opt.RustcPath == "" {
 		opt.RustcPath = "rustc"
@@ -343,7 +346,7 @@ func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, op
 	env := MergeEnv(
 		PkgEnv(d.pkg),
 		FeatureEnv(pkgFeatures),
-		CargoCfgEnv(opt.Cfg),
+		opt.Target.CargoCfgEnv(),
 		buildScriptEnv(u, opt, outDir),
 		map[string]string{
 			"CARGO_MANIFEST_DIR":    manifestDirOf(d, opt),
