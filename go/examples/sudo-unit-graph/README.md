@@ -1,6 +1,6 @@
 # sudo-rs compilation demo via --unit-graph
 
-mirrors [`../sudo`](../sudo) but uses cargo's `--unit-graph` instead of
+mirrors [`../sudo-build-plan`](../sudo-build-plan) but uses cargo's `--unit-graph` instead of
 `--build-plan`. proves the experimental `nqc build` path can derive a
 working build plan for a real native-lib-using crate.
 
@@ -65,7 +65,7 @@ artefacts land under `work/`:
 - `DOCKER=podman make all` -- use podman instead.
 - `make shell` -- drop into bash in the runner image for poking around.
 
-## comparison with `../sudo`
+## comparison with `../sudo-build-plan`
 
 both demos:
 
@@ -75,10 +75,10 @@ both demos:
 
 key differences:
 
-- `../sudo` pins `ubuntu/rust:1.75-24.04_stable` and uses
+- `../sudo-build-plan` pins `ubuntu/rust:1.75-24.04_stable` and uses
   `cargo --build-plan` directly.
 - this one pins `ubuntu/rust:1.93-26.04_edge` (where `--build-plan` is
   gone) and uses `cargo --unit-graph` + `nqc build` instead.
 
-when this demo breaks but `../sudo` still works, the regression is in
+when this demo breaks but `../sudo-build-plan` still works, the regression is in
 `nqc build`, not in the runner / patcher.

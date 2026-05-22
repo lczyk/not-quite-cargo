@@ -207,7 +207,7 @@ two layers:
 
 [fd]: https://github.com/sharkdp/fd
 
-e2e validation happens via the existing `go/examples/sudo` demo --
+e2e validation happens via the existing `go/examples/sudo-build-plan` demo --
 no new CI needed for the experimental feature. once unitgraph is
 stable enough, we add an `examples/fd` analogue.
 

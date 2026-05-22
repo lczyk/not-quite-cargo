@@ -15,7 +15,8 @@ only one binary.
 - `cargo/unitgraph/` -- **experimental**: derive a build plan from a cargo `--unit-graph`
 - `cargo/testdata/` -- fixtures for the patch golden test
 - `internal/version/` -- generated version info (gitignored, regenerated via `make build`)
-- `examples/sudo/` -- end-to-end demo: compile sudo-rs without cargo on the runner
+- `examples/sudo-build-plan/` -- end-to-end demo: compile sudo-rs without cargo on the runner (via cargo `--build-plan`)
+- `examples/sudo-unit-graph/` -- same end-to-end demo, but via cargo `--unit-graph` + experimental `nqc build`
 
 ## build
 
