@@ -73,7 +73,8 @@ the machine it runs on.
 - `--project-root <path>` -- spliced into output paths.
 - `--cargo-home <path>` -- spliced into manifest dir paths; no file
   lookups happen against it.
-- `--rustc <name>` -- program string in the emitted plan.
+- `--rustc <name>` -- program string in the emitted plan. defaults to
+  `rustc` (every other flag is required).
 
 manifest loads are best-effort: when a Cargo.toml can't be found
 (captured plans often reference machines that don't have every dep's

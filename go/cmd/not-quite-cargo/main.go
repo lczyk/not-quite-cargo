@@ -67,7 +67,7 @@ type LowerCommand struct {
 	Env         string `long:"env" required:"yes" description:"Target libc env (gnu, musl, msvc) -- use empty value for OSes that don't need one (e.g. macos)"`
 	ProjectRoot string `long:"project-root" required:"yes" description:"Project root used for output paths"`
 	CargoHome   string `long:"cargo-home" required:"yes" description:"CARGO_HOME path spliced into manifest dirs (no file lookups)"`
-	RustcPath   string `long:"rustc" required:"yes" description:"rustc program name to embed in the plan"`
+	RustcPath   string `long:"rustc" default:"rustc" description:"rustc program name to embed in the plan"`
 
 	Args struct {
 		UnitGraph string `positional-arg-name:"unit-graph.json" description:"Input unit-graph JSON"`
