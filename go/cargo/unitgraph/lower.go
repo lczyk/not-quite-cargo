@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 // LowerOptions controls the lowering. Most fields are optional and have
@@ -277,7 +278,7 @@ func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions) 
 			"CARGO_CRATE_NAME":      underscore(u.Target.Name),
 			"CARGO_MANIFEST_DIR":    manifestDirOf(d, opt),
 			"CARGO_MANIFEST_PATH":   filepath.Join(manifestDirOf(d, opt), "Cargo.toml"),
-			"CARGO_PRIMARY_PACKAGE": primaryFlag(u, derived),
+			"CARGO_PRIMARY_PACKAGE": primaryFlag(u),
 		},
 	)
 	if isBinKind(u.Target.Kind) {
@@ -346,7 +347,7 @@ func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, op
 		map[string]string{
 			"CARGO_MANIFEST_DIR":    manifestDirOf(d, opt),
 			"CARGO_MANIFEST_PATH":   filepath.Join(manifestDirOf(d, opt), "Cargo.toml"),
-			"CARGO_PRIMARY_PACKAGE": primaryFlag(u, derived),
+			"CARGO_PRIMARY_PACKAGE": primaryFlag(u),
 		},
 	)
 
@@ -413,7 +414,7 @@ func resolveExterns(u *Unit, derived []unitDerived) []ExternRef {
 	return refs
 }
 
-func primaryFlag(u *Unit, derived []unitDerived) string {
+func primaryFlag(u *Unit) string {
 	// Cargo sets CARGO_PRIMARY_PACKAGE=1 for units belonging to a
 	// workspace member, "" otherwise. Unit-graph doesn't expose the
 	// workspace membership directly; for MVP, treat path+ units as
@@ -440,12 +441,7 @@ func manifestDirOf(d unitDerived, opt LowerOptions) string {
 }
 
 func isBinKind(kinds []string) bool {
-	for _, k := range kinds {
-		if k == "bin" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(kinds, "bin")
 }
 
 // profileDir maps cargo's profile names to their target dir name. Most

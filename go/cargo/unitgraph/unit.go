@@ -1,5 +1,7 @@
 package unitgraph
 
+import "slices"
+
 // Unit mirrors a single entry in cargo's `--unit-graph` JSON output.
 //
 // Fields are decoded directly from the JSON shape cargo emits; only the
@@ -77,21 +79,11 @@ func (u *Unit) IsHost() bool {
 
 // IsProcMacro reports whether the unit produces a procedural macro.
 func (u *Unit) IsProcMacro() bool {
-	for _, k := range u.Target.Kind {
-		if k == "proc-macro" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(u.Target.Kind, "proc-macro")
 }
 
 // IsCustomBuild reports whether the unit relates to a build script
 // (either compiling build.rs or executing the resulting binary).
 func (u *Unit) IsCustomBuild() bool {
-	for _, k := range u.Target.Kind {
-		if k == "custom-build" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(u.Target.Kind, "custom-build")
 }
