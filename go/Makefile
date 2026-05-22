@@ -1,6 +1,8 @@
 .SUFFIXES:
 
-SRCS := $(shell find ./cmd ./cargo ./internal -name '*.go' ! -name '*_test.go' ! -name 'version.go')
+# `./internal` is gitignored (holds the generated version.go); only
+# include it in the find if it exists, otherwise fresh clones error.
+SRCS := $(shell find ./cmd ./cargo $$([ -d ./internal ] && echo ./internal) -name '*.go' ! -name '*_test.go' ! -name 'version.go')
 
 help:  ## Show this help
 	@echo "Available targets:"
