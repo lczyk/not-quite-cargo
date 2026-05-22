@@ -2,6 +2,7 @@ package unitgraph
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 )
@@ -24,9 +25,9 @@ type PkgMetadata struct {
 
 // Target captures the cfg-driving subset of a rust target.
 //
-// SCOPE: v0 supports {linux, macos} x {aarch64, x86_64}. aarch64 is
-// the verified path (fd fixture). x86_64 is added optimistically -- to
-// be verified by a later capture.
+// SCOPE: v0 supports {linux, macos} x {aarch64, x86_64}. Both arches
+// verified e2e via the sudo + fd example demos (arm64 locally, amd64
+// on a linux runner).
 //
 // Libc carries the rust target env token (gnu / musl) for linux, or
 // "none" for macos. cargo emits CARGO_CFG_TARGET_ENV as the empty
@@ -82,12 +83,14 @@ func (t Target) Family() string {
 	return "unix"
 }
 
-// PointerWidth is "64" -- only aarch64 supported.
+// PointerWidth is "64" -- both supported arches (aarch64 + x86_64) are
+// 64-bit.
 func (t Target) PointerWidth() string {
 	return "64"
 }
 
-// Endian is "little" for aarch64.
+// Endian is "little" -- both supported arches (aarch64 + x86_64) are
+// little-endian.
 func (t Target) Endian() string {
 	return "little"
 }
@@ -212,9 +215,7 @@ func splitSemver(v string) (major, minor, patch, pre string) {
 func MergeEnv(layers ...map[string]string) map[string]string {
 	out := map[string]string{}
 	for _, layer := range layers {
-		for k, v := range layer {
-			out[k] = v
-		}
+		maps.Copy(out, layer)
 	}
 	return out
 }
