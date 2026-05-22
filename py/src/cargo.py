@@ -8,21 +8,21 @@ Script to execute Cargo build plan invocations manually.
 First, generate the build plan with:
 
 ```bash
-cargo build -j1 -Z unstable-options --build-plan > build_plan.json
+cargo build -j1 -Z unstable-options --build-plan > build-plan.json
 ```
 
-Then perform a minor brain surgery on the `build_plan.json` file to replace
+Then perform a minor brain surgery on the `build-plan.json` file to replace
 paths with placeholders like `{{PROJECT_ROOT}}`, `{{CARGO_HOME}}`, and `{{RUSTC}}`
 to make the build plan more portable.
 
 ```bash
-python3 not-quite-cargo.py patch build_plan.json
+python3 not-quite-cargo.py patch build-plan.json
 ```
 
 Then run this script with:
 
 ```bash
-python3 not-quite-cargo.py run build_plan.json
+python3 not-quite-cargo.py run build-plan.json
 ```
 """
 
