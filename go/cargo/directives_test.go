@@ -86,6 +86,27 @@ func TestParseBuildScriptOutput(t *testing.T) {
 			wantEnv:   map[string]string{},
 			wantWarns: 1,
 		},
+		{
+			name:      "empty rustc-cfg value warns and skips",
+			input:     "cargo:rustc-cfg=",
+			wantFlags: []string{},
+			wantEnv:   map[string]string{},
+			wantWarns: 1,
+		},
+		{
+			name:      "empty rustc-env value warns and skips",
+			input:     "cargo:rustc-env=",
+			wantFlags: []string{},
+			wantEnv:   map[string]string{},
+			wantWarns: 1,
+		},
+		{
+			name:      "malformed rustc-env (no inner =) warns",
+			input:     "cargo:rustc-env=NOEQUALS",
+			wantFlags: []string{},
+			wantEnv:   map[string]string{},
+			wantWarns: 1,
+		},
 	}
 
 	for _, tc := range cases {

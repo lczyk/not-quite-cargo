@@ -37,3 +37,22 @@ func TestDeepReplace_NonStringScalar(t *testing.T) {
 		t.Fatalf("expected 42, got %v", got)
 	}
 }
+
+func TestDeepReplace_OverlappingKeys(t *testing.T) {
+	// Regression for the patch-overlap bug: when one replacement key is a
+	// prefix of another (PROJECT_ROOT being a parent dir of CARGO_HOME), the
+	// longer key must win regardless of map iteration order.
+	repl := map[string]string{
+		"/home/u/proj":        "{{PROJECT_ROOT}}",
+		"/home/u/proj/.cargo": "{{CARGO_HOME}}",
+	}
+	// Run many times -- with map iteration this is non-deterministic; with
+	// the length-desc fix the answer is the same every time.
+	want := "{{CARGO_HOME}}/registry"
+	for i := 0; i < 100; i++ {
+		got := DeepReplace("/home/u/proj/.cargo/registry", repl)
+		if got != want {
+			t.Fatalf("iter %d: got %q, want %q", i, got, want)
+		}
+	}
+}
