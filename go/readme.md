@@ -54,12 +54,12 @@ known limitations.
 
 ```
 cargo build -Z unstable-options --unit-graph > ug.json
-./bin/not-quite-cargo lower --os linux --arch aarch64 ug.json > build_plan.json
+./bin/not-quite-cargo build --os linux --arch aarch64 ug.json > build_plan.json
 ./bin/not-quite-cargo patch build_plan.json
 ./bin/not-quite-cargo run build_plan.json
 ```
 
-flags on `lower`:
+flags on `build`:
 
 - `--os <name>` -- target OS: `linux` or `macos`. (v0 doesn't support
   anything else.)

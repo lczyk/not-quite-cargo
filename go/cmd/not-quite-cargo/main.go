@@ -20,7 +20,7 @@ type Options struct {
 
 	Patch PatchCommand `command:"patch" description:"Rewrite paths in a Cargo build plan into placeholders"`
 	Run   RunCommand   `command:"run"   description:"Execute a (patched) Cargo build plan"`
-	Lower LowerCommand `command:"lower" description:"[EXPERIMENTAL] Lower a cargo --unit-graph into a build plan"`
+	Build BuildCommand `command:"build" description:"[EXPERIMENTAL] Build a runnable plan from a cargo --unit-graph"`
 }
 
 type planArg struct {
@@ -53,7 +53,7 @@ func (c *RunCommand) Execute(_ []string) error {
 	return cargo.Run(c.Args.BuildPlan, cfg)
 }
 
-// LowerCommand turns a cargo `--unit-graph` JSON file into a build-plan-
+// BuildCommand turns a cargo `--unit-graph` JSON file into a build-plan-
 // shaped JSON file that the existing patch + run pipeline can consume.
 //
 // EXPERIMENTAL. cargo removed --build-plan in 1.93.0; this command is the
@@ -61,7 +61,7 @@ func (c *RunCommand) Execute(_ []string) error {
 // upstream feature. correctness is best-effort and the on-disk format
 // may change between nqc releases. see unit-graph-plan.md at the repo
 // root for the design notes and known limitations.
-type LowerCommand struct {
+type BuildCommand struct {
 	OS        string `long:"os" required:"yes" description:"Target OS: linux or macos"`
 	Arch      string `long:"arch" required:"yes" description:"Target arch: aarch64 (verified) or x86_64 (untested)"`
 	Libc      string `long:"libc" default:"gnu" description:"Target libc: gnu / musl (linux), or 'none' (macos)"`
@@ -72,7 +72,7 @@ type LowerCommand struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (c *LowerCommand) Execute(_ []string) error {
+func (c *BuildCommand) Execute(_ []string) error {
 	ug, err := unitgraph.LoadUnitGraph(c.Args.UnitGraph)
 	if err != nil {
 		return err
