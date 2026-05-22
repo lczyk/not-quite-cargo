@@ -63,8 +63,7 @@ func (c *RunCommand) Execute(_ []string) error {
 // may change between nqc releases. see unit-graph-plan.md at the repo
 // root for the design notes and known limitations.
 type LowerCommand struct {
-	Cfg          string `long:"cfg" description:"Path to a 'rustc --print cfg' dump for the host platform" required:"yes"`
-	HostTriple   string `long:"host" description:"Host target triple (defaults to runtime detection)"`
+	Target       string `long:"target" description:"Rust target triple the plan will run on; drives both the host info on the unit-graph side and the CARGO_CFG_* env synthesis (defaults to runtime detection)"`
 	ProjectRoot  string `long:"project-root" description:"Project root used for output paths (defaults to cwd)"`
 	CargoHome    string `long:"cargo-home" description:"CARGO_HOME on the planner (defaults to $HOME/.cargo)"`
 	RustcPath    string `long:"rustc" description:"rustc program name to embed in the plan (defaults to 'rustc')"`
@@ -72,7 +71,6 @@ type LowerCommand struct {
 
 	Args struct {
 		UnitGraph string `positional-arg-name:"unit-graph.json" description:"Input unit-graph JSON"`
-		Output    string `positional-arg-name:"build-plan.json" description:"Output build-plan JSON"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -82,19 +80,12 @@ func (c *LowerCommand) Execute(_ []string) error {
 		return err
 	}
 
-	cfgBytes, err := os.ReadFile(c.Cfg)
-	if err != nil {
-		return fmt.Errorf("read cfg: %w", err)
+	target := c.Target
+	if target == "" {
+		target = detectHostTriple()
 	}
-	cfg, err := unitgraph.ParseCfg(string(cfgBytes))
-	if err != nil {
-		return fmt.Errorf("parse cfg: %w", err)
-	}
+	cfg := unitgraph.CfgFromTriple(target)
 
-	host := c.HostTriple
-	if host == "" {
-		host = detectHostTriple()
-	}
 	root := c.ProjectRoot
 	if root == "" {
 		if cwd, err := os.Getwd(); err == nil {
@@ -103,7 +94,7 @@ func (c *LowerCommand) Execute(_ []string) error {
 	}
 
 	out, err := unitgraph.Lower(ug, unitgraph.LowerOptions{
-		HostTriple:         host,
+		HostTriple:         target,
 		Cfg:                cfg,
 		CargoHome:          c.CargoHome,
 		ProjectRoot:        root,
@@ -126,10 +117,10 @@ func (c *LowerCommand) Execute(_ []string) error {
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
-	if err := os.WriteFile(c.Args.Output, body, 0o644); err != nil {
+	if _, err := os.Stdout.Write(append(body, '\n')); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
-	log.Printf("lowered %d units to %s", len(out.Invocations), c.Args.Output)
+	log.Printf("lowered %d units", len(out.Invocations))
 	return nil
 }
 
@@ -174,7 +165,6 @@ func main() {
 	}
 	parser := flags.NewParser(&opts, flags.Default)
 	parser.Name = "not-quite-cargo"
-	parser.Usage = "[OPTIONS] COMMAND [build-plan.json]"
 
 	if _, err := parser.Parse(); err != nil {
 		var flagsErr *flags.Error

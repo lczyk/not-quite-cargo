@@ -54,21 +54,23 @@ known limitations.
 
 ```
 cargo build -Z unstable-options --unit-graph > ug.json
-rustc --print cfg > host-cfg.txt
-./bin/not-quite-cargo lower --cfg host-cfg.txt ug.json build_plan.json
+./bin/not-quite-cargo lower --target x86_64-unknown-linux-gnu ug.json > build_plan.json
 ./bin/not-quite-cargo patch build_plan.json
 ./bin/not-quite-cargo run build_plan.json
 ```
 
 flags on `lower`:
 
-- `--cfg <file>` -- required. raw `rustc --print cfg` output for the host
-- `--host <triple>` -- override the runtime-detected host triple
+- `--target <triple>` -- target triple the plan will run on; drives both
+  the host-info side and `CARGO_CFG_*` env synthesis. defaults to
+  runtime detection.
 - `--project-root <path>` -- defaults to cwd
 - `--cargo-home <path>` -- defaults to `$HOME/.cargo`
 - `--rustc <name>` -- program string in the emitted plan; defaults to `rustc`
 - `--skip-manifest-errors` -- fall back to pkg_id-only metadata when a
   Cargo.toml can't be loaded (git sources, missing registry caches)
+
+the lowered plan is written to stdout; pipe or redirect.
 
 [bp-removal]: https://github.com/rust-lang/cargo/pull/16212
 [plan]: ../unit-graph-plan.md
