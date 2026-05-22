@@ -24,17 +24,16 @@ type PkgMetadata struct {
 
 // Target captures the cfg-driving subset of a rust target.
 //
-// SCOPE: v0 only supports linux + macos on aarch64. Anything else
-// returns an error from Validate(). Adding more targets is a question
-// of expanding the small lookup tables here -- but we don't claim
-// correctness for what we haven't tested.
+// SCOPE: v0 supports {linux, macos} x {aarch64, x86_64}. aarch64 is
+// the verified path (fd fixture). x86_64 is added optimistically -- to
+// be verified by a later capture.
 //
 // Libc carries the rust target env token (gnu / musl) for linux, or
 // "none" for macos. cargo emits CARGO_CFG_TARGET_ENV as the empty
 // string for "none".
 type Target struct {
 	OS   string // linux | macos
-	Arch string // aarch64
+	Arch string // aarch64 | x86_64
 	Libc string // gnu | musl (linux only) | none (macos)
 }
 
@@ -54,8 +53,10 @@ func (t Target) Validate() error {
 	default:
 		return fmt.Errorf("target: OS must be linux or macos, got %q", t.OS)
 	}
-	if t.Arch != "aarch64" {
-		return fmt.Errorf("target: arch must be aarch64, got %q", t.Arch)
+	switch t.Arch {
+	case "aarch64", "x86_64":
+	default:
+		return fmt.Errorf("target: arch must be aarch64 or x86_64, got %q", t.Arch)
 	}
 	return nil
 }

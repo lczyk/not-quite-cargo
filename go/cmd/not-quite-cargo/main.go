@@ -63,7 +63,7 @@ func (c *RunCommand) Execute(_ []string) error {
 // root for the design notes and known limitations.
 type LowerCommand struct {
 	OS        string `long:"os" required:"yes" description:"Target OS: linux or macos"`
-	Arch      string `long:"arch" required:"yes" description:"Target arch: aarch64 (only supported value in v0)"`
+	Arch      string `long:"arch" required:"yes" description:"Target arch: aarch64 (verified) or x86_64 (untested)"`
 	Libc      string `long:"libc" default:"gnu" description:"Target libc: gnu / musl (linux), or 'none' (macos)"`
 	RustcPath string `long:"rustc" default:"rustc" description:"rustc program name to embed in the plan"`
 

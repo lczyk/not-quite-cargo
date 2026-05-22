@@ -25,7 +25,10 @@ func TestTarget_ValidateAccepts(t *testing.T) {
 	for _, ok := range []Target{
 		{OS: "linux", Arch: "aarch64", Libc: "gnu"},
 		{OS: "linux", Arch: "aarch64", Libc: "musl"},
+		{OS: "linux", Arch: "x86_64", Libc: "gnu"},
+		{OS: "linux", Arch: "x86_64", Libc: "musl"},
 		{OS: "macos", Arch: "aarch64", Libc: "none"},
+		{OS: "macos", Arch: "x86_64", Libc: "none"},
 	} {
 		assert.NoError(t, ok.Validate(), "%+v", ok)
 	}
@@ -34,7 +37,7 @@ func TestTarget_ValidateAccepts(t *testing.T) {
 func TestTarget_ValidateRejects(t *testing.T) {
 	cases := []Target{
 		{OS: "windows", Arch: "aarch64", Libc: "gnu"},
-		{OS: "linux", Arch: "x86_64", Libc: "gnu"},
+		{OS: "linux", Arch: "i686", Libc: "gnu"},
 		{OS: "linux", Arch: "aarch64", Libc: "msvc"},
 		{OS: "macos", Arch: "aarch64", Libc: "gnu"},
 		{OS: "", Arch: "aarch64", Libc: "gnu"},

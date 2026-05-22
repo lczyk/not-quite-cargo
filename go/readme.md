@@ -63,8 +63,9 @@ flags on `lower`:
 
 - `--os <name>` -- target OS: `linux` or `macos`. (v0 doesn't support
   anything else.)
-- `--arch <name>` -- target arch: `aarch64`. (v0 doesn't support
-  anything else.)
+- `--arch <name>` -- target arch: `aarch64` (verified path -- fd fixture
+  runs on it) or `x86_64` (allowed optimistically, not yet validated
+  against a fixture).
 - `--libc <name>` -- `gnu` (default) / `musl` on linux, or `none` on
   macos.
 - `--rustc <name>` -- program string in the emitted plan; defaults to
