@@ -156,7 +156,7 @@ every cargo-set env var rustc + build scripts read:
 
 cfg parser converts `rustc --print cfg` text into the `CARGO_CFG_*` map.
 
-### cli shape: explicit `nqc build` subcommand (originally `lower`)
+### cli shape: explicit `nqc build` subcommand
 
 new top-level verb. flags:
 
@@ -170,7 +170,7 @@ are expected during early iteration; reusable users can pin nqc version.
 
 ```
 go/cargo/unitgraph/
-  lower.go      -- orchestrator: builds a cargo.BuildPlan from a UnitGraph
+  build.go      -- orchestrator: builds a cargo.BuildPlan from a UnitGraph
   args.go       -- rustc args from a single unit
   env.go        -- env-var synthesis (incl. CARGO_CFG_*)
   hash.go       -- self-consistent metadata hash
@@ -228,11 +228,10 @@ seven small commits:
    derivers.
 
 4. `feat: cargo/unitgraph Lower orchestrator`
-   `lower.go` (`Lower()` function) wires the above into one entry point. unit tests using
+   `build.go` (`Build()` function) wires the above into one entry point. unit tests using
    hand-built small unit-graphs.
 
-5. `feat: nqc build subcommand` (was originally landed as `nqc lower`,
-   later renamed)
+5. `feat: nqc build subcommand`
    cli wiring. main.go gains a third subcommand using go-flags. README
    updated to describe the experimental flow.
 

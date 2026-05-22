@@ -67,8 +67,8 @@ license = "MIT OR Apache-2.0"
 	}
 }
 
-func tinyOpts(cargoHome string) LowerOptions {
-	return LowerOptions{
+func tinyOpts(cargoHome string) BuildOptions {
+	return BuildOptions{
 		HostTriple:    "aarch64-unknown-linux-gnu",
 		CargoHome:     cargoHome,
 		ProjectRoot:   "/proj",
@@ -78,12 +78,12 @@ func tinyOpts(cargoHome string) LowerOptions {
 	}
 }
 
-func TestLower_TinyGraph(t *testing.T) {
+func TestBuild_TinyGraph(t *testing.T) {
 	cargoHome := t.TempDir()
 	projDir := t.TempDir()
 	ug := tinyUG(t, projDir, cargoHome)
 
-	out, err := Lower(ug, tinyOpts(cargoHome))
+	out, err := Build(ug, tinyOpts(cargoHome))
 	assert.NoError(t, err)
 	assert.Len(t, out.Invocations, 2)
 
@@ -107,7 +107,7 @@ func TestLower_TinyGraph(t *testing.T) {
 
 	// Env: CARGO_PKG_NAME from pkg_id, CARGO_CRATE_NAME canonical.
 	// (pkg_id carries name + version; other CARGO_PKG_* stay empty
-	// because Lower no longer reads Cargo.toml.)
+	// because Build no longer reads Cargo.toml.)
 	assert.Equal(t, bin.Env["CARGO_PKG_NAME"], "demo")
 	assert.Equal(t, bin.Env["CARGO_CRATE_NAME"], "demo")
 	assert.Equal(t, bin.Env["CARGO_BIN_NAME"], "demo")
@@ -119,32 +119,32 @@ func TestLower_TinyGraph(t *testing.T) {
 	assert.Equal(t, lib.Env["CARGO_PRIMARY_PACKAGE"], "")
 }
 
-func TestLower_RejectsBadVersion(t *testing.T) {
+func TestBuild_RejectsBadVersion(t *testing.T) {
 	ug := &UnitGraph{Version: 99}
-	_, err := Lower(ug, LowerOptions{
+	_, err := Build(ug, BuildOptions{
 		Target:      Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
 		ProjectRoot: "/proj",
 		RustcPath:   "rustc",
 	})
-	// Lower doesn't validate version itself (LoadUnitGraph does); it
+	// Build doesn't validate version itself (LoadUnitGraph does); it
 	// just processes whatever it's given. The empty Units slice means
 	// no error -- adjust expectation.
 	assert.NoError(t, err)
 }
 
-func TestLower_RequiresValidTarget(t *testing.T) {
-	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{})
+func TestBuild_RequiresValidTarget(t *testing.T) {
+	_, err := Build(&UnitGraph{Version: 1}, BuildOptions{})
 	assert.Error(t, err, assert.AnyError)
 }
 
-func TestLower_RequiresRustcPath(t *testing.T) {
-	_, err := Lower(&UnitGraph{Version: 1}, LowerOptions{
+func TestBuild_RequiresRustcPath(t *testing.T) {
+	_, err := Build(&UnitGraph{Version: 1}, BuildOptions{
 		Target: Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
 	})
 	assert.Error(t, err, "RustcPath is required")
 }
 
-func TestLower_DerivesProjectRootFromUnitGraph(t *testing.T) {
+func TestBuild_DerivesProjectRootFromUnitGraph(t *testing.T) {
 	// path+ pkg_id with file:// URL is the project root.
 	ug := &UnitGraph{
 		Version: 1,
@@ -157,7 +157,7 @@ func TestLower_DerivesProjectRootFromUnitGraph(t *testing.T) {
 			},
 		},
 	}
-	out, err := Lower(ug, LowerOptions{
+	out, err := Build(ug, BuildOptions{
 		Target:    Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
 		RustcPath: "rustc",
 	})
@@ -166,7 +166,7 @@ func TestLower_DerivesProjectRootFromUnitGraph(t *testing.T) {
 	assert.ContainsString(t, out.Invocations[0].Outputs[0], "/work/myproj/target/")
 }
 
-func TestLower_DerivesCargoHomeFromUnitGraph(t *testing.T) {
+func TestBuild_DerivesCargoHomeFromUnitGraph(t *testing.T) {
 	// A registry src_path under /home/u/.cargo-custom/registry/src/...
 	// should yield CargoHome = /home/u/.cargo-custom and the index dir
 	// = "myindex-abc123" (auto-derived from the same path).
@@ -188,7 +188,7 @@ func TestLower_DerivesCargoHomeFromUnitGraph(t *testing.T) {
 			},
 		},
 	}
-	out, err := Lower(ug, LowerOptions{
+	out, err := Build(ug, BuildOptions{
 		Target:    Target{OS: "linux", Arch: "aarch64", Libc: "gnu"},
 		RustcPath: "rustc",
 	})

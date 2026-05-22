@@ -19,7 +19,7 @@ const (
 	fdFixtureCargoHome   = "/tmp/cargo-home"
 )
 
-// TestFixture_FdLowering loads the captured fd unit-graph fixture,
+// TestFixture_Fd loads the captured fd unit-graph fixture,
 // builds the corresponding plan, and sanity-checks the result.
 //
 // The fixture files (`testdata/fd/{unit-graph,build-plan}.json`) are
@@ -27,7 +27,7 @@ const (
 // README in that dir for provenance. The test is skipped when the
 // fixture isn't present so contributors can land code changes without
 // running the (docker-heavy) capture pipeline.
-func TestFixture_FdLowering(t *testing.T) {
+func TestFixture_Fd(t *testing.T) {
 	dir := filepath.Join("testdata", "fd")
 	ugPath := filepath.Join(dir, "unit-graph.json")
 	bpPath := filepath.Join(dir, "build-plan.json")
@@ -39,7 +39,7 @@ func TestFixture_FdLowering(t *testing.T) {
 	ug, err := LoadUnitGraph(ugPath)
 	require.NoError(t, err)
 
-	got, err := Lower(ug, LowerOptions{
+	got, err := Build(ug, BuildOptions{
 		// Capture container is linux/<host-arch>; pass linux + a
 		// representative arch. ProjectRoot + CargoHome derived from the
 		// unit-graph automatically (path+ + registry+ source paths).

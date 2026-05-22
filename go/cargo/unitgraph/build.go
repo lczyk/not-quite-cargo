@@ -9,10 +9,10 @@ import (
 	"strings"
 )
 
-// LowerOptions controls the build. Pure transform: Lower reads no
+// BuildOptions controls the build. Pure transform: Build reads no
 // files beyond the unit-graph passed in by the caller. Everything else
 // is opts.
-type LowerOptions struct {
+type BuildOptions struct {
 	// HostTriple identifies the planner's host platform, used for units
 	// with `platform: null` (host builds, proc macros, build scripts).
 	HostTriple string
@@ -48,10 +48,10 @@ type LowerOptions struct {
 	RegistryIndex string
 }
 
-// LowerOutput is the result of the build step: an `Invocation`-shaped
+// BuildOutput is the result of the build step: an `Invocation`-shaped
 // JSON document equivalent to a cargo --build-plan output, plus
 // warnings the caller may want to surface.
-type LowerOutput struct {
+type BuildOutput struct {
 	Invocations []Invocation
 	Inputs      []string
 	Warnings    []string
@@ -77,12 +77,12 @@ type Invocation struct {
 	Cwd            string            `json:"cwd"`
 }
 
-// Lower converts a unit-graph into a build-plan-shaped document.
+// Build converts a unit-graph into a build-plan-shaped document.
 //
 // The output's Invocations slice is in unit-graph index order (deps
 // reference indices, so order matters). Run's topological sort handles
 // execution order on the runner side.
-func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
+func Build(ug *UnitGraph, opt BuildOptions) (*BuildOutput, error) {
 	if ug == nil {
 		return nil, fmt.Errorf("lower: nil unit-graph")
 	}
@@ -110,7 +110,7 @@ func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
 		opt.RegistryIndex = deriveRegistryIndex(ug)
 	}
 
-	out := &LowerOutput{
+	out := &BuildOutput{
 		Invocations: make([]Invocation, len(ug.Units)),
 	}
 
@@ -154,7 +154,7 @@ type unitDerived struct {
 	outDir               string // for run-custom-build units, the OUT_DIR they write into
 }
 
-func preDerive(u *Unit, opt LowerOptions) (unitDerived, string, error) {
+func preDerive(u *Unit, opt BuildOptions) (unitDerived, string, error) {
 	id, err := ParsePkgID(u.PkgID)
 	if err != nil {
 		return unitDerived{}, "", err
@@ -239,7 +239,7 @@ func platformDir(u *Unit, host string) string {
 	return ""
 }
 
-func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions, ug *UnitGraph) (Invocation, error) {
+func buildInvocation(u *Unit, idx int, derived []unitDerived, opt BuildOptions, ug *UnitGraph) (Invocation, error) {
 	d := derived[idx]
 
 	// Deps as indices, preserved from the unit graph.
@@ -320,7 +320,7 @@ func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions, 
 	}, nil
 }
 
-func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, opt LowerOptions, ug *UnitGraph) (Invocation, error) {
+func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, opt BuildOptions, ug *UnitGraph) (Invocation, error) {
 	d := derived[idx]
 
 	// The build script binary was produced by a sibling "build"-mode
@@ -383,7 +383,7 @@ func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, op
 
 // buildScriptEnv returns the cargo-set env vars build scripts read at
 // runtime (everything beyond CARGO_PKG_*, CARGO_FEATURE_*, CARGO_CFG_*).
-func buildScriptEnv(u *Unit, opt LowerOptions, outDir string) map[string]string {
+func buildScriptEnv(u *Unit, opt BuildOptions, outDir string) map[string]string {
 	env := map[string]string{
 		"OUT_DIR":   outDir,
 		"TARGET":    u.PlatformOrHost(opt.HostTriple),
@@ -452,7 +452,7 @@ func isPrimaryPkg(pkgID string) bool {
 	return strings.Contains(pkgID, "(path+")
 }
 
-func manifestDirOf(d unitDerived, opt LowerOptions) string {
+func manifestDirOf(d unitDerived, opt BuildOptions) string {
 	dir, err := d.pkgID.ManifestDir(opt.CargoHome, opt.RegistryIndex)
 	if err != nil {
 		return ""

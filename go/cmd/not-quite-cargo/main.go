@@ -80,9 +80,9 @@ func (c *BuildCommand) Execute(_ []string) error {
 
 	// Project root and cargo home are auto-derived from the unit-graph:
 	// path+ pkg_ids for the workspace and registry+ source paths for
-	// the cargo home. Lower handles the derivation when these are empty
+	// the cargo home. Build handles the derivation when these are empty
 	// in opts.
-	out, err := unitgraph.Lower(ug, unitgraph.LowerOptions{
+	out, err := unitgraph.Build(ug, unitgraph.BuildOptions{
 		Target:    unitgraph.Target{OS: c.OS, Arch: normaliseArch(c.Arch), Libc: c.Libc},
 		RustcPath: c.RustcPath,
 	})
