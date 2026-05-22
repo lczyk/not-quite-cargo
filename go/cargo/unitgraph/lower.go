@@ -130,7 +130,7 @@ func Lower(ug *UnitGraph, opt LowerOptions) (*LowerOutput, error) {
 
 	// Main pass: synthesise the Invocation for each unit.
 	for i, u := range ug.Units {
-		inv, err := buildInvocation(&u, i, derived, opt)
+		inv, err := buildInvocation(&u, i, derived, opt, ug)
 		if err != nil {
 			return nil, fmt.Errorf("unit %d (%s): %w", i, u.PkgID, err)
 		}
@@ -243,7 +243,7 @@ func platformDir(u *Unit, host string) string {
 	return ""
 }
 
-func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions) (Invocation, error) {
+func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions, ug *UnitGraph) (Invocation, error) {
 	d := derived[idx]
 
 	// Deps as indices, preserved from the unit graph.
@@ -254,7 +254,7 @@ func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions) 
 
 	switch u.Mode {
 	case "run-custom-build":
-		return buildRunCustomBuild(u, idx, derived, deps, opt)
+		return buildRunCustomBuild(u, idx, derived, deps, opt, ug)
 	}
 
 	// Default: rustc invocation (build, test, check, etc).
@@ -319,7 +319,7 @@ func buildInvocation(u *Unit, idx int, derived []unitDerived, opt LowerOptions) 
 	}, nil
 }
 
-func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, opt LowerOptions) (Invocation, error) {
+func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, opt LowerOptions, ug *UnitGraph) (Invocation, error) {
 	d := derived[idx]
 
 	// The build script binary was produced by a sibling "build"-mode
@@ -339,9 +339,23 @@ func buildRunCustomBuild(u *Unit, idx int, derived []unitDerived, deps []int, op
 	}
 	outDir := d.outDir
 
+	// The run-custom-build unit's own features list is usually empty;
+	// cargo sets CARGO_FEATURE_<NAME>=1 vars from the package's actual
+	// compile unit features. Find any non-custom-build unit of the same
+	// package and copy its features. Stable order (first match wins).
+	pkgFeatures := u.Features
+	for i := range ug.Units {
+		sibling := &ug.Units[i]
+		if sibling.PkgID != u.PkgID || sibling.IsCustomBuild() {
+			continue
+		}
+		pkgFeatures = sibling.Features
+		break
+	}
+
 	env := MergeEnv(
 		PkgEnv(d.pkg),
-		FeatureEnv(u.Features),
+		FeatureEnv(pkgFeatures),
 		CargoCfgEnv(opt.Cfg),
 		buildScriptEnv(u, opt, outDir),
 		map[string]string{
