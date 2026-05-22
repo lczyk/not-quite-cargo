@@ -1,10 +1,8 @@
 package cargo
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"maps"
 	"strings"
 )
 
@@ -12,65 +10,58 @@ import (
 // runtime injects fresh values from Config.
 var strippedEnvKeys = []string{"CARGO", "PROJECT_ROOT", "CARGO_HOME", "RUSTC"}
 
-// Patch rewrites the build plan in-place, replacing concrete paths with
+// PatchPlan returns a new build-plan map with concrete paths replaced by
 // `{{PROJECT_ROOT}}` / `{{CARGO_HOME}}` placeholders and the `rustc` program
-// with `{{RUSTC}}`. The `{{RUSTC}}` placeholder is never written to disk for
-// any other field; rustc is resolved at run time.
-func Patch(path string, cfg *Config) error {
-	if cfg.Logger != nil {
-		cfg.Logger.Infof("patching build plan: %s", path)
+// replaced with `{{RUSTC}}`. Pure transform -- no file IO, no env reads. The
+// `{{RUSTC}}` placeholder is never written to disk for any other field; rustc
+// is resolved at run time.
+func PatchPlan(plan map[string]any, projectRoot, cargoHome string) (map[string]any, error) {
+	if projectRoot == "" {
+		return nil, fmt.Errorf("PatchPlan: projectRoot is required")
+	}
+	if cargoHome == "" {
+		return nil, fmt.Errorf("PatchPlan: cargoHome is required")
 	}
 
-	plan, err := loadPlanJSON(path)
-	if err != nil {
-		return err
+	// Reverse replacements (path -> placeholder). RUSTC is intentionally not
+	// substituted -- it's a runtime concern, only the literal `program: rustc`
+	// gets templated.
+	reverse := map[string]string{
+		projectRoot: "{{PROJECT_ROOT}}",
+		cargoHome:   "{{CARGO_HOME}}",
 	}
 
-	// Reverse replacements (path -> placeholder), with RUSTC stripped -- it's
-	// a runtime concern.
-	reverse := map[string]string{}
-	for placeholder, value := range cfg.Replacements() {
-		if placeholder == "{{RUSTC}}" {
-			continue
-		}
-		reverse[value] = placeholder
-	}
+	out := map[string]any{}
+	maps.Copy(out, plan)
 
 	invsRaw, _ := plan["invocations"].([]any)
 	patched := make([]any, len(invsRaw))
 	for i, invAny := range invsRaw {
 		inv, ok := invAny.(map[string]any)
 		if !ok {
-			return fmt.Errorf("invocation %d has unexpected shape", i)
+			return nil, fmt.Errorf("invocation %d has unexpected shape", i)
 		}
-		patchInvocation(inv)
-		patched[i] = DeepReplace(inv, reverse)
+		// Copy + mutate to avoid touching the caller's map.
+		clone := map[string]any{}
+		maps.Copy(clone, inv)
+		patchInvocation(clone)
+		patched[i] = DeepReplace(clone, reverse)
 	}
-	plan["invocations"] = patched
+	out["invocations"] = patched
 
 	if inputs, ok := plan["inputs"].([]any); ok {
-		out := make([]any, len(inputs))
+		inputsOut := make([]any, len(inputs))
 		for i, input := range inputs {
 			if s, ok := input.(string); ok {
-				out[i] = replaceString(s, reverse)
+				inputsOut[i] = replaceString(s, reverse)
 			} else {
-				out[i] = input
+				inputsOut[i] = input
 			}
 		}
-		plan["inputs"] = out
+		out["inputs"] = inputsOut
 	}
 
-	body, err := json.MarshalIndent(plan, "", "    ")
-	if err != nil {
-		return fmt.Errorf("marshal patched plan: %w", err)
-	}
-	if err := writeAtomic(path, body, 0o644); err != nil {
-		return fmt.Errorf("write patched plan: %w", err)
-	}
-	if cfg.Logger != nil {
-		cfg.Logger.Infof("patched build plan saved to %s", path)
-	}
-	return nil
+	return out, nil
 }
 
 // patchInvocation applies the structural rewrites that aren't pure string
@@ -107,36 +98,4 @@ func patchInvocation(inv map[string]any) {
 		}
 		inv["args"] = filtered
 	}
-}
-
-// writeAtomic writes data to a temp file in the destination directory then
-// renames over the target. If the process is interrupted mid-write the
-// original file is preserved.
-func writeAtomic(path string, data []byte, perm os.FileMode) error {
-	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, ".nqc-patch-*")
-	if err != nil {
-		return err
-	}
-	tmp := f.Name()
-	cleanup := func() { _ = os.Remove(tmp) }
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		cleanup()
-		return err
-	}
-	if err := f.Chmod(perm); err != nil {
-		_ = f.Close()
-		cleanup()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		cleanup()
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		cleanup()
-		return err
-	}
-	return nil
 }

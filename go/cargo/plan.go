@@ -4,7 +4,40 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
+
+// WriteAtomic writes data to a temp file in the destination directory then
+// renames over the target. If the process is interrupted mid-write the
+// original file is preserved. Used by the --inplace patch path.
+func WriteAtomic(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, ".nqc-patch-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	cleanup := func() { _ = os.Remove(tmp) }
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		cleanup()
+		return err
+	}
+	if err := f.Chmod(perm); err != nil {
+		_ = f.Close()
+		cleanup()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		cleanup()
+		return err
+	}
+	return nil
+}
 
 // Invocation is a single build step from a Cargo build plan.
 type Invocation struct {
@@ -23,9 +56,13 @@ type Invocation struct {
 	Cwd            string            `json:"cwd"`
 }
 
-// loadPlanJSON reads and parses a build plan into a generic map for patching.
+// LoadPlanJSON reads and parses a build plan into a generic map for patching.
 // `run` uses this too; the typed Invocation struct is only built after string
 // replacements have been applied.
+func LoadPlanJSON(path string) (map[string]any, error) {
+	return loadPlanJSON(path)
+}
+
 func loadPlanJSON(path string) (map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

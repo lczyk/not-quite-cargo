@@ -77,7 +77,7 @@ plan: binary clone  ## cargo --unit-graph (container) + nqc build + nqc patch (h
 	cd $(GO_ROOT) && go run ./cmd/not-quite-cargo build \
 		--os linux --arch $(NQC_ARCH) --libc gnu \
 		$(SUDO_RS_DIR)/unit-graph.json > $(SUDO_RS_DIR)/build-plan.json
-	cd $(GO_ROOT) && go run ./cmd/not-quite-cargo patch $(SUDO_RS_DIR)/build-plan.json
+	cd $(GO_ROOT) && go run ./cmd/not-quite-cargo patch --project-root=/work --cargo-home=/cargo-home --inplace $(SUDO_RS_DIR)/build-plan.json
 
 .PHONY: run
 run: image binary plan  ## execute the patched plan, no cargo, no network

@@ -11,23 +11,24 @@ import (
 	"github.com/lczyk/assert"
 )
 
-// TestPatch_Golden patches a fixture plan in a temp dir and compares the
-// result, byte for byte after re-encoding, to the expected fixture.
+// patchFile loads a plan from disk, applies PatchPlan with the given
+// roots, marshals back and returns the encoded JSON.
+func patchFile(t *testing.T, path, projectRoot, cargoHome string) []byte {
+	t.Helper()
+	plan, err := loadPlanJSON(path)
+	assert.NoError(t, err)
+	out, err := PatchPlan(plan, projectRoot, cargoHome)
+	assert.NoError(t, err)
+	body, err := json.MarshalIndent(out, "", "    ")
+	assert.NoError(t, err)
+	return body
+}
+
+// TestPatch_Golden patches a fixture plan and compares the result, byte
+// for byte after re-encoding, to the expected fixture.
 func TestPatch_Golden(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join("testdata", "plan.small.json"))
-	assert.NoError(t, err)
-	tmp := filepath.Join(t.TempDir(), "plan.json")
-	assert.NoError(t, os.WriteFile(tmp, src, 0o644))
-
-	cfg := &Config{
-		ProjectRoot: "/proj/root",
-		CargoHome:   "/cargo/home",
-		RustcPath:   "/some/rustc",
-	}
-	assert.NoError(t, Patch(tmp, cfg))
-
-	got, err := os.ReadFile(tmp)
-	assert.NoError(t, err)
+	src := filepath.Join("testdata", "plan.small.json")
+	got := patchFile(t, src, "/proj/root", "/cargo/home")
 	want, err := os.ReadFile(filepath.Join("testdata", "plan.small.patched.json"))
 	assert.NoError(t, err)
 	assert.That(t, jsonEqual(t, got, want),
@@ -35,20 +36,11 @@ func TestPatch_Golden(t *testing.T) {
 }
 
 func TestPatch_RUSTCNotWrittenToFile(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join("testdata", "plan.small.json"))
-	assert.NoError(t, err)
-	tmp := filepath.Join(t.TempDir(), "plan.json")
-	assert.NoError(t, os.WriteFile(tmp, src, 0o644))
-	cfg := &Config{
-		ProjectRoot: "/proj/root",
-		CargoHome:   "/cargo/home",
-		// Pick a path that occurs in the file; if Patch ever reverse-mapped it
-		// to {{RUSTC}}, this test would catch the regression.
-		RustcPath: "/proj/root",
-	}
-	assert.NoError(t, Patch(tmp, cfg))
-	got, err := os.ReadFile(tmp)
-	assert.NoError(t, err)
+	src := filepath.Join("testdata", "plan.small.json")
+	// Pick a path that occurs in the file; if PatchPlan ever reverse-mapped it
+	// to {{RUSTC}}, this test would catch the regression. (We pass /proj/root
+	// as the cargoHome too -- nonsense but enough to exercise the path.)
+	got := patchFile(t, src, "/proj/root", "/proj/root")
 	if bytes.Contains(got, []byte("{{RUSTC}}")) {
 		// program=rustc -> {{RUSTC}} is allowed, but every other occurrence
 		// must come from string replacement, which we explicitly skip.
@@ -94,32 +86,30 @@ func TestPatch_DiagnosticWidthTwoArg(t *testing.T) {
 			},
 		},
 	}
-	body, _ := json.Marshal(plan)
-	tmp := filepath.Join(t.TempDir(), "plan.json")
-	assert.NoError(t, os.WriteFile(tmp, body, 0o644))
-	cfg := &Config{ProjectRoot: "/proj", CargoHome: "/cargo", RustcPath: "/r"}
-	assert.NoError(t, Patch(tmp, cfg))
-	got, _ := os.ReadFile(tmp)
-	var out map[string]any
-	assert.NoError(t, json.Unmarshal(got, &out))
+	out, err := PatchPlan(plan, "/proj", "/cargo")
+	assert.NoError(t, err)
 	args := out["invocations"].([]any)[0].(map[string]any)["args"].([]any)
 	want := []any{"--edition=2021", "--crate-name", "x", "--out-dir", "/tmp/out"}
 	assert.EqualCmpAny(t, args, want, func(a, b any) bool { return reflect.DeepEqual(a, b) })
 }
 
-func TestPatch_AtomicWrite(t *testing.T) {
-	// On success the target file ends up updated. Sanity check that no
-	// stray temp file is left behind in the dir.
-	src, _ := os.ReadFile(filepath.Join("testdata", "plan.small.json"))
+func TestPatch_EmptyArgsError(t *testing.T) {
+	plan := map[string]any{"invocations": []any{}}
+	_, err := PatchPlan(plan, "", "/cargo")
+	assert.That(t, err != nil, "expected error when projectRoot is empty")
+	_, err = PatchPlan(plan, "/proj", "")
+	assert.That(t, err != nil, "expected error when cargoHome is empty")
+}
+
+func TestWriteAtomic_NoStrayTempFile(t *testing.T) {
+	// WriteAtomic should leave only the target file behind on success.
 	dir := t.TempDir()
-	tmp := filepath.Join(dir, "plan.json")
-	assert.NoError(t, os.WriteFile(tmp, src, 0o644))
-	cfg := &Config{ProjectRoot: "/proj/root", CargoHome: "/cargo/home", RustcPath: "/r"}
-	assert.NoError(t, Patch(tmp, cfg))
+	tmp := filepath.Join(dir, "out.json")
+	assert.NoError(t, WriteAtomic(tmp, []byte("ok"), 0o644))
 	entries, err := os.ReadDir(dir)
 	assert.NoError(t, err)
 	for _, e := range entries {
-		assert.Equal(t, e.Name(), "plan.json", "stray file left behind")
+		assert.Equal(t, e.Name(), "out.json", "stray file left behind")
 	}
 }
 

@@ -27,8 +27,16 @@ type planArg struct {
 	BuildPlan string `positional-arg-name:"build-plan.json" description:"Path to the build plan JSON file"`
 }
 
+// PatchCommand rewrites paths in a build plan into placeholders. Pure
+// transform on the plan JSON -- reads only the build-plan file (no env,
+// no host filesystem inspection). PROJECT_ROOT / CARGO_HOME come in as
+// required flags. Writes the patched plan to stdout by default, or back
+// over the input file with --inplace.
 type PatchCommand struct {
-	Args planArg `positional-args:"yes" required:"yes"`
+	ProjectRoot string  `long:"project-root" required:"yes" description:"Concrete path to replace with {{PROJECT_ROOT}} in the plan"`
+	CargoHome   string  `long:"cargo-home" required:"yes" description:"Concrete path to replace with {{CARGO_HOME}} in the plan"`
+	InPlace     bool    `long:"inplace" description:"Write the patched plan back over the input file (atomic) instead of stdout"`
+	Args        planArg `positional-args:"yes" required:"yes"`
 }
 
 type RunCommand struct {
@@ -36,12 +44,28 @@ type RunCommand struct {
 }
 
 func (c *PatchCommand) Execute(_ []string) error {
-	cfg, err := cargo.NewConfig(nil)
+	plan, err := cargo.LoadPlanJSON(c.Args.BuildPlan)
 	if err != nil {
 		return err
 	}
-	logConfig(cfg)
-	return cargo.Patch(c.Args.BuildPlan, cfg)
+	patched, err := cargo.PatchPlan(plan, c.ProjectRoot, c.CargoHome)
+	if err != nil {
+		return err
+	}
+	body, err := json.MarshalIndent(patched, "", "    ")
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	if c.InPlace {
+		if err := cargo.WriteAtomic(c.Args.BuildPlan, append(body, '\n'), 0o644); err != nil {
+			return fmt.Errorf("write: %w", err)
+		}
+		return nil
+	}
+	if _, err := os.Stdout.Write(append(body, '\n')); err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+	return nil
 }
 
 func (c *RunCommand) Execute(_ []string) error {
