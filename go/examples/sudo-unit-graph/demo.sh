@@ -149,7 +149,7 @@ function _runner_run() {
         }
         not-quite-cargo run build_plan.json
         printf "built artefacts:\n"
-        find target -maxdepth 3 -type f -name sudo -o -name su -o -name visudo
+        find target -maxdepth 4 -type f -executable \( -name "sudo-*" -o -name "su-*" -o -name "visudo-*" \) | grep -v "\.d$"
     ')
     local it="${_TTY_FLAG}"
     if [ "${SHELL_MODE}" = "1" ]; then
