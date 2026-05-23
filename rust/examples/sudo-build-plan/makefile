@@ -61,10 +61,7 @@ $(BINARY_CROSS): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.
 		--platform=linux/$(HOST_ARCH) \
 		--volume $(RUST_ROOT):/rust \
 		--volume $(WORKDIR):/out \
-		--volume $(HOME)/.cargo/registry:/cargo/registry \
-		--volume $(HOME)/.cargo/git:/cargo/git \
-		-e CARGO_HOME=/cargo \
-		$(CROSS_IMAGE) exec sh -c 'set -e; cd /rust; cargo build --release; cp target/release/not-quite-cargo /out/not-quite-cargo-cross'
+		$(CROSS_IMAGE) exec sh -c 'set -e; apt-get -qq update; apt-get -qq install -y --no-install-recommends git; apt-get -qq clean; git clone --branch rust/v0.5.0 https://github.com/lczyk/version /tmp/version; cd /rust; cargo build --release --config "patch.\"https://github.com/lczyk/version\".version.path=\"/tmp/version/rust\""; cp target/release/not-quite-cargo /out/not-quite-cargo-cross'
 
 .PHONY: clone
 clone: $(SUDO_RS_DIR)  ## clone sudo-rs at the pinned ref
