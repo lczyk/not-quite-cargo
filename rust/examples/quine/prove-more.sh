@@ -4,6 +4,7 @@
 set -e
 
 N=${N:-1000}
+JOBS=${JOBS:-0}   # 0 = max available
 cd /work
 BIN=/work/target/debug/not-quite-cargo
 COMPILER=not-quite-cargo
@@ -14,7 +15,7 @@ W=${#N}
 total_start=$(date +%s%3N)
 for i in $(seq 1 "$N"); do
     round_start=$(date +%s%3N)
-    "$COMPILER" run /build-plan.json > /dev/null 2>&1
+    "$COMPILER" run -j "$JOBS" /build-plan.json > /dev/null 2>&1
     elapsed=$(($(date +%s%3N) - round_start))
     [ -x "$BIN" ] || { echo "round $i: no nqc binary at $BIN" >&2; exit 1; }
     cp -L "$BIN" /usr/local/bin/nqc-current

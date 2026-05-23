@@ -28,6 +28,7 @@ PLAN_FILE_DEBUG := $(WORKDIR)/build-plan-debug.json
 TARGET_PROVE := $(WORKDIR)/target-prove
 
 N ?= 1000
+JOBS ?= 0
 
 # Map host -m output to the rust/docker arch token (arm64 / amd64).
 HOST_ARCH := $(shell uname -m | sed -e 's/aarch64/arm64/' -e 's/x86_64/amd64/')
@@ -136,7 +137,7 @@ prove-more: image cross plan $(PLAN_FILE_DEBUG)  ## run the quine loop N times w
 		--volume $(WORKDIR)/cargo-home:/cargo-home:ro \
 		--volume $(SCRIPT_DIR)/prove-more.sh:/prove-more.sh:ro \
 		--workdir /work \
-		-e CARGO_HOME=/cargo-home -e N=$(N) \
+		-e CARGO_HOME=/cargo-home -e N=$(N) -e JOBS=$(JOBS) \
 		$(DEMO_IMAGE) exec sh /prove-more.sh
 
 .PHONY: shell
