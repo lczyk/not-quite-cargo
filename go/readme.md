@@ -8,11 +8,9 @@
 
 Not-quite-car**go**...
 
-This is an AI rewrite of the python version which was then audited for bits
-quiteliterally lost in translation. I would not trust this version as much as
-the other one. Over time though, as i vet it more thougoughly, this will become
-the default verion due to the ease cross compilation + binary size + it being 
-only one binary.
+~~go port of the python tool~~ default implementation of `not-quite-cargo` (`nqc`).
+
+it takes a cargo `--build-plan` (or, for cargo 1.93+, a `--unit-graph`), `patch`es the embedded host paths into `{{PROJECT_ROOT}}` / `{{CARGO_HOME}}` placeholders so the plan can be shipped elsewhere, and then `run`s the compile / build-script / link steps wherever you drop it -- no cargo on the runner. for cargo 1.93+ the experimental `build` subcommand derives a build-plan-shape file from `--unit-graph` (since `--build-plan` was removed).
 
 ## layout
 
