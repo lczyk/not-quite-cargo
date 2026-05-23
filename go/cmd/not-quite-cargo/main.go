@@ -10,9 +10,9 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	ver "github.com/lczyk/version/go"
 
-	"not-quite-cargo/cargo"
-	"not-quite-cargo/cargo/unitgraph"
-	vinfo "not-quite-cargo/internal/version"
+	"github.com/lczyk/not-quite-cargo/go/cargo"
+	"github.com/lczyk/not-quite-cargo/go/cargo/unitgraph"
+	vinfo "github.com/lczyk/not-quite-cargo/go/internal/version"
 )
 
 type Options struct {
