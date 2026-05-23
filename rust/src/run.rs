@@ -146,9 +146,11 @@ pub fn run(path: &Path, cfg: &Config) -> anyhow::Result<()> {
             );
         }
 
-        // Create symlinks.
+        // Create symlinks. symlink_metadata is used instead of exists()
+        // because exists() follows symlinks: a dangling symlink would
+        // return false, then symlink() hits EEXIST.
         for (link, target) in &inv.links {
-            if Path::new(link).exists() {
+            if Path::new(link).symlink_metadata().is_ok() {
                 std::fs::remove_file(link)
                     .with_context(|| format!("remove stale symlink {link}"))?;
             }
