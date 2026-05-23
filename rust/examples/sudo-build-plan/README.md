@@ -1,12 +1,24 @@
-# sudo-rs compilation demo
+# sudo-rs compilation demo (rust port)
 
-end-to-end demo of building [sudo-rs](https://github.com/trifectatechfoundation/sudo-rs)
-without cargo in the build host, only on the machine on which we plan the build
+mirrors [the go example](../../../go/examples/sudo-build-plan/). six stages:
+image -> binary -> cross -> clone -> plan -> run -> prove.
 
-rust depends on `libpam0g-dev` which we need to supply somehow. we could just built it outside od the containter but, for convenience, here we pre-built the build image, drop `libpam0g-dev` libs (and all transitive deps) into the right place on the filesystem and, jsut to not have any aces in one's sleeve, remove `cargo` binary.
+## diffs from the go version
 
-planing then happens in upstream `ubuntu/rust:1.75-24.04` (rock). it uses that image's `cargo build -Z unstable-options --build-plan > build-plan.json`. then we run `not-quite-cargo patch build-plan.json` on it (on the host) to patch out build-specific paths / variables and drop it into the pre-built build image -- without cargo but with `nqc` -- which we also deprived of a network bridge just to make sure nothing touches network and... it builds(!)...
+- **extra `cross` stage** -- go cross-compiles to linux from any host with
+  `GOOS=linux GOARCH=<arch>`. rust needs a linux toolchain, so we spin up
+  `ubuntu/rust:1.85-24.04_edge`, install git via apt, clone `lczyk/version` by
+  hand (container libgit2 is broken on this setup), and redirect cargo's git
+  dep with `--config patch."https://...".version.path="/tmp/version/rust"`.
+  the resulting `work/not-quite-cargo-cross` is a proper Linux ELF.
 
-ok, just because it does not fail does not mean it works. let's then proove it works by dropping the compiled binary into *yet another* image ( this time `ubuntu:24.04` ) set up all the "correct" sudo config like `root ALL=(ALL:ALL) NOPASSWD: ALL` and we get `sudo whoami | grep -F root` passing.
+- **two binaries** -- `work/not-quite-cargo` is the host binary (Mach-O on
+  macOS), used for the `patch` step which runs on the host. the `run` and
+  `shell` steps use `work/not-quite-cargo-cross` (Linux ELF).
 
-run with `make install`
+- **`CROSS_IMAGE` knob** -- overridable image for the cross-compile step.
+  defaults to `docker.io/ubuntu/rust:1.85-24.04_edge` (must support edition
+  2024). the `PLAN_IMAGE` stays at 1.75 for sudo-rs compatibility.
+
+everything else -- Dockerfile, prove.sh, the plan/run/prove flow -- is
+identical to the go example.

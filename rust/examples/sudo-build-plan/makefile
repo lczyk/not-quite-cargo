@@ -1,8 +1,9 @@
 .SUFFIXES:
 
-# sudo-rs compilation demo. five stages
-# (image -> binary -> clone -> plan -> run -> prove). Each stage is
-# its own target so callers can re-run any single piece in isolation.
+# sudo-rs compilation demo. six stages
+# (image -> binary -> cross -> clone -> plan -> run -> prove). Each
+# stage is its own target so callers can re-run any single piece in
+# isolation.
 #
 # Overridable knobs:
 #   SUDO_RS_REF=<tag-or-sha>   pinned upstream revision (default v0.2.3)
@@ -20,7 +21,7 @@ SCRIPT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 RUST_ROOT   := $(shell realpath $(SCRIPT_DIR)/../..)
 WORKDIR    := $(SCRIPT_DIR)/work
 BINARY     := $(WORKDIR)/not-quite-cargo
-BINARY_CROSS := $(WORKDIR)/not-quite-cargo-cross
+CROSS := $(WORKDIR)/not-quite-cargo-cross
 SUDO_RS_DIR := $(WORKDIR)/sudo-rs
 
 # Map host -m output to the rust/docker arch token (arm64 / amd64).
@@ -31,7 +32,7 @@ help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: all
-all: image binary binary-cross clone plan run prove  ## Run the full demo end to end
+all: image binary cross clone plan run prove  ## Run the full demo end to end
 
 .PHONY: image
 image:  ## Build the rust+libpam demo image
@@ -51,10 +52,10 @@ $(BINARY): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $
 	cd $(RUST_ROOT) && cargo build --release
 	cp $(RUST_ROOT)/target/release/not-quite-cargo $(BINARY)
 
-.PHONY: binary-cross
-binary-cross: $(BINARY_CROSS)  ## compile nqc for linux inside the plan image
+.PHONY: cross
+cross: $(CROSS)  ## compile nqc for linux inside the plan image
 
-$(BINARY_CROSS): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $(RUST_ROOT)/Cargo.lock $(RUST_ROOT)/build.rs makefile
+$(CROSS): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $(RUST_ROOT)/Cargo.lock $(RUST_ROOT)/build.rs makefile
 	@echo "[demo] cross-compiling not-quite-cargo for linux inside $(CROSS_IMAGE)"
 	mkdir -p $(WORKDIR)
 	$(DOCKER) run --rm \
@@ -85,13 +86,13 @@ plan: binary clone  ## generate & patch build-plan.json
 	$(BINARY) patch --project-root=/work --cargo-home=/cargo-home --inplace $(SUDO_RS_DIR)/build-plan.json
 
 .PHONY: run
-run: image binary-cross plan  ## execute the patched plan, no cargo, no network
+run: image cross plan  ## execute the patched plan, no cargo, no network
 	@echo "[demo] runner: executing patched plan (network=none, cargo removed)"
 	$(DOCKER) run --rm \
 		--platform=linux/$(HOST_ARCH) \
 		--network=none \
 		--volume $(SUDO_RS_DIR):/work \
-		--volume $(BINARY_CROSS):/usr/local/bin/not-quite-cargo:ro \
+		--volume $(CROSS):/usr/local/bin/not-quite-cargo:ro \
 		--volume $(WORKDIR)/cargo-home:/cargo-home:ro \
 		--workdir /work \
 		-e CARGO_HOME=/cargo-home \
@@ -115,7 +116,7 @@ shell: image  ## drop into a shell in the demo image
 	$(DOCKER) run --rm -it \
 		--platform=linux/$(HOST_ARCH) \
 		--volume $(SUDO_RS_DIR):/work \
-		--volume $(BINARY_CROSS):/usr/local/bin/not-quite-cargo:ro \
+		--volume $(CROSS):/usr/local/bin/not-quite-cargo:ro \
 		--workdir /work \
 		$(DEMO_IMAGE) exec sh
 
