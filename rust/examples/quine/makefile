@@ -25,6 +25,9 @@ CROSS      := $(WORKDIR)/not-quite-cargo-cross
 VERSION_SRC := $(WORKDIR)/version-src
 PLAN_FILE  := $(WORKDIR)/build-plan.json
 TARGET_PROVE := $(WORKDIR)/target-prove
+TARGET_MORE  := $(WORKDIR)/target-more
+
+N ?= 1000
 
 # Map host -m output to the rust/docker arch token (arm64 / amd64).
 HOST_ARCH := $(shell uname -m | sed -e 's/aarch64/arm64/' -e 's/x86_64/amd64/')
@@ -60,9 +63,11 @@ cross: $(CROSS)  ## compile nqc for linux inside the cross image
 $(CROSS): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $(RUST_ROOT)/Cargo.lock $(RUST_ROOT)/build.rs makefile
 	@echo "[demo] cross-compiling not-quite-cargo for linux inside $(CROSS_IMAGE)"
 	mkdir -p $(WORKDIR)
+	cp $(RUST_ROOT)/Cargo.lock $(WORKDIR)/Cargo.lock.cross
 	$(DOCKER) run --rm \
 		--platform=linux/$(HOST_ARCH) \
-		--volume $(RUST_ROOT):/rust \
+		--volume $(RUST_ROOT):/rust:ro \
+		--volume $(WORKDIR)/Cargo.lock.cross:/rust/Cargo.lock \
 		--volume $(WORKDIR):/out \
 		$(CROSS_IMAGE) exec sh -c 'set -e; apt-get -qq update; apt-get -qq install -y --no-install-recommends git; apt-get -qq clean; git -c advice.detachedHead=false clone --branch $(VERSION_REF) $(VERSION_REPO) /tmp/version; cd /rust; CARGO_TARGET_DIR=/tmp/target cargo build --release --config "patch.\"$(VERSION_REPO)\".version.path=\"/tmp/version/rust\""; cp /tmp/target/release/not-quite-cargo /out/not-quite-cargo-cross'
 
@@ -78,9 +83,11 @@ $(VERSION_SRC)/.git:
 plan: binary clone  ## generate & patch build-plan.json
 	@echo "[demo] planner: generating build-plan.json in container"
 	mkdir -p $(WORKDIR)/cargo-home $(WORKDIR)/target-plan
+	cp $(RUST_ROOT)/Cargo.lock $(WORKDIR)/Cargo.lock.plan
 	$(DOCKER) run --rm \
 		--platform=linux/$(HOST_ARCH) \
 		--volume $(RUST_ROOT):/work:ro \
+		--volume $(WORKDIR)/Cargo.lock.plan:/work/Cargo.lock \
 		--volume $(WORKDIR)/target-plan:/work/target \
 		--volume $(VERSION_SRC):/version-src \
 		--volume $(WORKDIR):/out \
@@ -109,6 +116,25 @@ prove: image cross plan  ## close the quine: cross nqc builds nqc, then built nq
 		--workdir /work \
 		-e CARGO_HOME=/cargo-home \
 		$(DEMO_IMAGE) exec sh /prove.sh
+
+.PHONY: prove-more
+prove-more: image cross plan  ## run the quine loop N times (default N=1000)
+	@echo "[demo] prove-more: $(N) rounds inside $(DEMO_IMAGE)"
+	rm -rf $(TARGET_MORE)
+	mkdir -p $(TARGET_MORE)
+	$(DOCKER) run --rm \
+		--platform=linux/$(HOST_ARCH) \
+		--network=none \
+		--volume $(RUST_ROOT):/work:ro \
+		--volume $(TARGET_MORE):/work/target \
+		--volume $(VERSION_SRC):/version-src:ro \
+		--volume $(PLAN_FILE):/build-plan.json:ro \
+		--volume $(CROSS):/usr/local/bin/not-quite-cargo:ro \
+		--volume $(WORKDIR)/cargo-home:/cargo-home:ro \
+		--volume $(SCRIPT_DIR)/prove-more.sh:/prove-more.sh:ro \
+		--workdir /work \
+		-e CARGO_HOME=/cargo-home -e N=$(N) \
+		$(DEMO_IMAGE) exec sh /prove-more.sh
 
 .PHONY: shell
 shell: image  ## drop into a shell in the demo image
