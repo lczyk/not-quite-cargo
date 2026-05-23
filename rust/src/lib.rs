@@ -4,6 +4,7 @@ pub mod directives;
 pub mod logger;
 pub mod patch;
 pub mod plan;
+pub mod profile;
 pub mod run;
 pub mod topo;
 
@@ -13,5 +14,6 @@ pub use directives::parse_build_script_output;
 pub use logger::Logger;
 pub use patch::{patch_plan, pretty_format};
 pub use plan::{Invocation, load_plan_json, write_atomic};
+pub use profile::{DEBUG, RELEASE, ProfileSpec, parse_profile, rewrite_profile};
 pub use run::run;
 pub use topo::resolve_invocation_order;
