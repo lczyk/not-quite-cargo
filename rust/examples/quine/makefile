@@ -26,7 +26,6 @@ VERSION_SRC := $(WORKDIR)/version-src
 PLAN_FILE  := $(WORKDIR)/build-plan.json
 PLAN_FILE_DEBUG := $(WORKDIR)/build-plan-debug.json
 TARGET_PROVE := $(WORKDIR)/target-prove
-TARGET_MORE  := $(WORKDIR)/target-more
 
 N ?= 1000
 
@@ -125,14 +124,12 @@ $(PLAN_FILE_DEBUG): $(PLAN_FILE)
 
 .PHONY: prove-more
 prove-more: image cross plan $(PLAN_FILE_DEBUG)  ## run the quine loop N times w/ debug profile (default N=1000)
-	@echo "[demo] prove-more: $(N) rounds inside $(DEMO_IMAGE)"
-	rm -rf $(TARGET_MORE)
-	mkdir -p $(TARGET_MORE)
+	@echo "[demo] prove-more: $(N) rounds inside $(DEMO_IMAGE) (tmpfs target)"
 	$(DOCKER) run --rm \
 		--platform=linux/$(HOST_ARCH) \
 		--network=none \
 		--volume $(RUST_ROOT):/work:ro \
-		--volume $(TARGET_MORE):/work/target \
+		--tmpfs /work/target:rw,exec,size=2g \
 		--volume $(VERSION_SRC):/version-src:ro \
 		--volume $(PLAN_FILE_DEBUG):/build-plan.json:ro \
 		--volume $(CROSS):/usr/local/bin/not-quite-cargo:ro \
