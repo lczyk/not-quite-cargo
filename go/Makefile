@@ -49,7 +49,7 @@ test-examples:  ## Run each examples/*/makefile end-to-end (PASS/FAIL only)
 test: test-unit test-examples  ## Run unit tests + example demos
 
 .PHONY: lint
-lint:  ## go vet + gofmt check (no writes)
+lint: generate-version  ## go vet + gofmt check (no writes)
 	go vet ./...
 	@out=$$(gofmt -s -l ./cmd ./cargo ./internal); \
 	if [ -n "$$out" ]; then echo "Unformatted files:"; echo "$$out"; exit 1; fi
