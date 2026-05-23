@@ -5,7 +5,7 @@ set -e
 
 N=${N:-1000}
 cd /work
-BIN=/work/target/release/not-quite-cargo
+BIN=/work/target/debug/not-quite-cargo
 COMPILER=not-quite-cargo
 
 echo "[prove-more] running $N rounds"

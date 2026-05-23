@@ -24,6 +24,7 @@ BINARY     := $(WORKDIR)/not-quite-cargo
 CROSS      := $(WORKDIR)/not-quite-cargo-cross
 VERSION_SRC := $(WORKDIR)/version-src
 PLAN_FILE  := $(WORKDIR)/build-plan.json
+PLAN_FILE_DEBUG := $(WORKDIR)/build-plan-debug.json
 TARGET_PROVE := $(WORKDIR)/target-prove
 TARGET_MORE  := $(WORKDIR)/target-more
 
@@ -117,8 +118,13 @@ prove: image cross plan  ## close the quine: cross nqc builds nqc, then built nq
 		-e CARGO_HOME=/cargo-home \
 		$(DEMO_IMAGE) exec sh /prove.sh
 
+$(PLAN_FILE_DEBUG): $(PLAN_FILE)
+	@echo "[demo] deriving build-plan-debug.json from release plan"
+	cp $(PLAN_FILE) $(PLAN_FILE_DEBUG)
+	$(BINARY) patch --project-root=/work --cargo-home=/cargo-home --profile=debug --inplace $(PLAN_FILE_DEBUG)
+
 .PHONY: prove-more
-prove-more: image cross plan  ## run the quine loop N times (default N=1000)
+prove-more: image cross plan $(PLAN_FILE_DEBUG)  ## run the quine loop N times w/ debug profile (default N=1000)
 	@echo "[demo] prove-more: $(N) rounds inside $(DEMO_IMAGE)"
 	rm -rf $(TARGET_MORE)
 	mkdir -p $(TARGET_MORE)
@@ -128,7 +134,7 @@ prove-more: image cross plan  ## run the quine loop N times (default N=1000)
 		--volume $(RUST_ROOT):/work:ro \
 		--volume $(TARGET_MORE):/work/target \
 		--volume $(VERSION_SRC):/version-src:ro \
-		--volume $(PLAN_FILE):/build-plan.json:ro \
+		--volume $(PLAN_FILE_DEBUG):/build-plan.json:ro \
 		--volume $(CROSS):/usr/local/bin/not-quite-cargo:ro \
 		--volume $(WORKDIR)/cargo-home:/cargo-home:ro \
 		--volume $(SCRIPT_DIR)/prove-more.sh:/prove-more.sh:ro \
