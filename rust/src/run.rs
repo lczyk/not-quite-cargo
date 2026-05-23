@@ -211,10 +211,7 @@ fn worker(state: Arc<SharedState>, cfg: Config) {
             .unwrap()
             .get(&inv.package_name)
             .cloned();
-        let position = (
-            state.completed.load(Ordering::SeqCst) + 1,
-            state.total,
-        );
+        let position = (state.completed.load(Ordering::SeqCst) + 1, state.total);
 
         let result = execute_invocation(inv, &cfg, snapshot.as_ref(), Some(position));
 
@@ -348,8 +345,7 @@ fn execute_invocation(
     // Create symlinks.
     for (link, target) in &inv.links {
         if Path::new(link).symlink_metadata().is_ok() {
-            std::fs::remove_file(link)
-                .with_context(|| format!("remove stale symlink {link}"))?;
+            std::fs::remove_file(link).with_context(|| format!("remove stale symlink {link}"))?;
         }
         symlink(target, link).with_context(|| format!("create symlink {link} -> {target}"))?;
         logger.info(&format!("symlink: {link} -> {target}"));

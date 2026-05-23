@@ -39,8 +39,9 @@ pub fn parse_profile(s: &str) -> Option<ProfileSpec> {
 /// Override (or add) `-C debuginfo=N` on rustc invocations.
 pub fn rewrite_debuginfo(plan: &mut JsonValue, level: &str) {
     if let JsonValue::Object(entries) = plan {
-        if let Some((_, JsonValue::Array(invs))) =
-            entries.iter_mut().find(|(k, _)| k.as_str() == "invocations")
+        if let Some((_, JsonValue::Array(invs))) = entries
+            .iter_mut()
+            .find(|(k, _)| k.as_str() == "invocations")
         {
             for inv in invs.iter_mut() {
                 if !is_rustc(inv) {
@@ -107,8 +108,9 @@ pub fn rewrite_profile(plan: &mut JsonValue, target: &ProfileSpec) {
     let source = detect_source(plan).unwrap_or(target.name);
 
     if let JsonValue::Object(entries) = plan {
-        if let Some((_, JsonValue::Array(invs))) =
-            entries.iter_mut().find(|(k, _)| k.as_str() == "invocations")
+        if let Some((_, JsonValue::Array(invs))) = entries
+            .iter_mut()
+            .find(|(k, _)| k.as_str() == "invocations")
         {
             for inv in invs.iter_mut() {
                 rewrite_invocation(inv, source, target);
@@ -213,14 +215,12 @@ fn rewrite_invocation(inv: &mut JsonValue, source: &str, target: &ProfileSpec) {
         }
     }
 
-    if let Some((_, JsonValue::String(cwd))) =
-        entries.iter_mut().find(|(k, _)| k.as_str() == "cwd")
+    if let Some((_, JsonValue::String(cwd))) = entries.iter_mut().find(|(k, _)| k.as_str() == "cwd")
     {
         *cwd = swap_segment(cwd, source, target.name);
     }
 
-    if let Some((_, JsonValue::Object(env))) =
-        entries.iter_mut().find(|(k, _)| k.as_str() == "env")
+    if let Some((_, JsonValue::Object(env))) = entries.iter_mut().find(|(k, _)| k.as_str() == "env")
     {
         for (k, v) in env.iter_mut() {
             if let JsonValue::String(s) = v {
@@ -317,7 +317,10 @@ mod tests {
             JsonValue::Object(e) => e,
             _ => panic!("expected object"),
         };
-        let invs = entries.iter().find(|(k, _)| k.as_str() == "invocations").unwrap();
+        let invs = entries
+            .iter()
+            .find(|(k, _)| k.as_str() == "invocations")
+            .unwrap();
         let arr = match &invs.1 {
             JsonValue::Array(a) => a,
             _ => panic!("expected invocations array"),
@@ -362,7 +365,13 @@ mod tests {
 
         if let JsonValue::Object(env) = field(&plan, "env") {
             let get = |key: &str| -> String {
-                match env.iter().find(|(k, _)| k.as_str() == key).unwrap().1.clone() {
+                match env
+                    .iter()
+                    .find(|(k, _)| k.as_str() == key)
+                    .unwrap()
+                    .1
+                    .clone()
+                {
                     JsonValue::String(s) => s,
                     _ => panic!(),
                 }

@@ -126,9 +126,10 @@ fn cmd_run(mut parser: lexopt::Parser) -> anyhow::Result<()> {
         match arg {
             Short('j') | Long("jobs") => {
                 let raw = parser.value()?.to_string_lossy().into_owned();
-                jobs_spec = Some(raw.parse::<i32>().with_context(|| {
-                    format!("--jobs must be an integer, got '{raw}'")
-                })?);
+                jobs_spec = Some(
+                    raw.parse::<i32>()
+                        .with_context(|| format!("--jobs must be an integer, got '{raw}'"))?,
+                );
             }
             Long("help") => {
                 print_run_help();
