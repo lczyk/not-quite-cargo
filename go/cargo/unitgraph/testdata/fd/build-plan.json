@@ -2864,7 +2864,7 @@
     },
     {
       "package_name": "terminal_size",
-      "package_version": "0.4.0",
+      "package_version": "0.5.0",
       "target_kind": [
         "lib"
       ],
@@ -2924,7 +2924,7 @@
         "CARGO_PKG_README": "README.md",
         "CARGO_PKG_REPOSITORY": "https://github.com/eminence/terminal-size",
         "CARGO_PKG_RUST_VERSION": "",
-        "CARGO_PKG_VERSION": "0.4.0",
+        "CARGO_PKG_VERSION": "0.5.0",
         "CARGO_PKG_VERSION_MAJOR": "0",
         "CARGO_PKG_VERSION_MINOR": "3",
         "CARGO_PKG_VERSION_PATCH": "0",
