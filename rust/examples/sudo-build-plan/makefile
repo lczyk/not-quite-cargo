@@ -12,11 +12,12 @@ SUDO_RS_REF        ?= v0.2.3
 DOCKER             ?= docker
 DEMO_IMAGE         ?= nqc-sudo-demo:1.75-24.04
 PLAN_IMAGE         ?= docker.io/ubuntu/rust:1.75-24.04_stable
+CROSS_IMAGE        ?= docker.io/ubuntu/rust:1.85-24.04_edge
 SUDO_RS_REPO       ?= https://github.com/trifectatechfoundation/sudo-rs.git
 PROVE_IMAGE        ?= docker.io/ubuntu:24.04
 
 SCRIPT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-RUST_ROOT   := $(SCRIPT_DIR)/../..
+RUST_ROOT   := $(shell realpath $(SCRIPT_DIR)/../..)
 WORKDIR    := $(SCRIPT_DIR)/work
 BINARY     := $(WORKDIR)/not-quite-cargo
 BINARY_CROSS := $(WORKDIR)/not-quite-cargo-cross
@@ -54,14 +55,16 @@ $(BINARY): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $
 binary-cross: $(BINARY_CROSS)  ## compile nqc for linux inside the plan image
 
 $(BINARY_CROSS): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $(RUST_ROOT)/Cargo.lock $(RUST_ROOT)/build.rs makefile
-	@echo "[demo] cross-compiling not-quite-cargo for linux inside $(PLAN_IMAGE)"
+	@echo "[demo] cross-compiling not-quite-cargo for linux inside $(CROSS_IMAGE)"
 	mkdir -p $(WORKDIR)
 	$(DOCKER) run --rm \
 		--platform=linux/$(HOST_ARCH) \
 		--volume $(RUST_ROOT):/rust \
 		--volume $(WORKDIR):/out \
-		--workdir /rust \
-		$(PLAN_IMAGE) exec sh -c 'set -e; cargo build --release; cp target/release/not-quite-cargo /out/not-quite-cargo-cross'
+		--volume $(HOME)/.cargo/registry:/cargo/registry \
+		--volume $(HOME)/.cargo/git:/cargo/git \
+		-e CARGO_HOME=/cargo \
+		$(CROSS_IMAGE) exec sh -c 'set -e; cd /rust; cargo build --release; cp target/release/not-quite-cargo /out/not-quite-cargo-cross'
 
 .PHONY: clone
 clone: $(SUDO_RS_DIR)  ## clone sudo-rs at the pinned ref
