@@ -1,0 +1,22 @@
+name: lint_and_test_rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Lint
+      run: make lint
+
+    - name: Test
+      run: make test-unit
