@@ -82,6 +82,10 @@ func loadPlanJSON(path string) (map[string]any, error) {
 func decodeInvocations(raw []any) ([]Invocation, error) {
 	invs := make([]Invocation, 0, len(raw))
 	for i, item := range raw {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invocation %d has unexpected shape", i)
+		}
 		blob, err := json.Marshal(item)
 		if err != nil {
 			return nil, fmt.Errorf("re-marshal invocation %d: %w", i, err)
@@ -89,6 +93,15 @@ func decodeInvocations(raw []any) ([]Invocation, error) {
 		var inv Invocation
 		if err := json.Unmarshal(blob, &inv); err != nil {
 			return nil, fmt.Errorf("decode invocation %d: %w", i, err)
+		}
+		if _, ok := obj["package_name"].(string); !ok {
+			return nil, fmt.Errorf("invocation %d: missing or non-string field 'package_name'", i)
+		}
+		if _, ok := obj["package_version"].(string); !ok {
+			return nil, fmt.Errorf("invocation %d: missing or non-string field 'package_version'", i)
+		}
+		if inv.CompileMode == "" {
+			inv.CompileMode = "build"
 		}
 		inv.Number = i
 		invs = append(invs, inv)
