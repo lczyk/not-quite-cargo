@@ -50,6 +50,7 @@ fn cmd_patch(mut parser: lexopt::Parser) -> anyhow::Result<()> {
     let mut inplace = false;
     let mut build_plan: Option<PathBuf> = None;
     let mut profile: Option<nqc::ProfileSpec> = None;
+    let mut debuginfo: Option<String> = None;
 
     while let Some(arg) = parser.next()? {
         match arg {
@@ -67,6 +68,9 @@ fn cmd_patch(mut parser: lexopt::Parser) -> anyhow::Result<()> {
                 profile = Some(nqc::parse_profile(&raw).with_context(|| {
                     format!("--profile must be 'release' or 'debug', got '{raw}'")
                 })?);
+            }
+            Long("debuginfo") => {
+                debuginfo = Some(parser.value()?.to_string_lossy().into_owned());
             }
             Long("help") => {
                 print_patch_help();
@@ -89,6 +93,9 @@ fn cmd_patch(mut parser: lexopt::Parser) -> anyhow::Result<()> {
     let mut patched = nqc::patch_plan(&plan, &project_root, &cargo_home)?;
     if let Some(spec) = profile {
         nqc::rewrite_profile(&mut patched, &spec);
+    }
+    if let Some(level) = debuginfo.as_deref() {
+        nqc::rewrite_debuginfo(&mut patched, level);
     }
     let body = nqc::pretty_format(&patched);
     let output = format!("{body}\n");
@@ -173,6 +180,7 @@ Options:
   --cargo-home <dir>     Concrete path to replace with {{{{CARGO_HOME}}}} in the plan
   --inplace              Write the patched plan back over the input file (atomic)
   --profile <name>       Rewrite plan for target profile: 'release' or 'debug'
+  --debuginfo <level>    Override -C debuginfo=N on all rustc invocations (e.g. 0)
   --help                 Show this help"
     );
 }

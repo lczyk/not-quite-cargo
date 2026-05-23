@@ -36,6 +36,73 @@ pub fn parse_profile(s: &str) -> Option<ProfileSpec> {
     }
 }
 
+/// Override (or add) `-C debuginfo=N` on rustc invocations.
+pub fn rewrite_debuginfo(plan: &mut JsonValue, level: &str) {
+    if let JsonValue::Object(entries) = plan {
+        if let Some((_, JsonValue::Array(invs))) =
+            entries.iter_mut().find(|(k, _)| k.as_str() == "invocations")
+        {
+            for inv in invs.iter_mut() {
+                if !is_rustc(inv) {
+                    continue;
+                }
+                if let JsonValue::Object(e) = inv {
+                    if let Some((_, JsonValue::Array(args))) =
+                        e.iter_mut().find(|(k, _)| k.as_str() == "args")
+                    {
+                        set_codegen_arg(args, "debuginfo", level);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn is_rustc(inv: &JsonValue) -> bool {
+    let entries = match inv {
+        JsonValue::Object(e) => e,
+        _ => return false,
+    };
+    let prog = entries.iter().find(|(k, _)| k.as_str() == "program");
+    matches!(prog, Some((_, JsonValue::String(s))) if s == "{{RUSTC}}" || s == "rustc")
+}
+
+fn set_codegen_arg(args: &mut Vec<JsonValue>, key: &str, value: &str) {
+    let mut i = 0;
+    let mut replaced = false;
+    while i < args.len() {
+        if let JsonValue::String(s) = &args[i] {
+            // Two-arg form: ["-C", "key=val"]
+            if s == "-C" && i + 1 < args.len() {
+                if let JsonValue::String(next) = &args[i + 1] {
+                    if let Some((k, _)) = next.split_once('=') {
+                        if k == key {
+                            args[i + 1] = JsonValue::String(format!("{key}={value}"));
+                            replaced = true;
+                        }
+                    }
+                }
+                i += 2;
+                continue;
+            }
+            // One-arg form: "-C key=val"
+            if let Some(body) = s.strip_prefix("-C ") {
+                if let Some((k, _)) = body.split_once('=') {
+                    if k == key {
+                        args[i] = JsonValue::String(format!("-C {key}={value}"));
+                        replaced = true;
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    if !replaced {
+        args.push(JsonValue::String("-C".to_string()));
+        args.push(JsonValue::String(format!("{key}={value}")));
+    }
+}
+
 pub fn rewrite_profile(plan: &mut JsonValue, target: &ProfileSpec) {
     let source = detect_source(plan).unwrap_or(target.name);
 

@@ -120,7 +120,7 @@ prove: image cross plan  ## close the quine: cross nqc builds nqc, then built nq
 $(PLAN_FILE_DEBUG): $(PLAN_FILE)
 	@echo "[demo] deriving build-plan-debug.json from release plan"
 	cp $(PLAN_FILE) $(PLAN_FILE_DEBUG)
-	$(BINARY) patch --project-root=/work --cargo-home=/cargo-home --profile=debug --inplace $(PLAN_FILE_DEBUG)
+	$(BINARY) patch --project-root=/work --cargo-home=/cargo-home --profile=debug --debuginfo=0 --inplace $(PLAN_FILE_DEBUG)
 
 .PHONY: prove-more
 prove-more: image cross plan $(PLAN_FILE_DEBUG)  ## run the quine loop N times w/ debug profile (default N=1000)
