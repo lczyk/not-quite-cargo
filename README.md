@@ -19,9 +19,9 @@ attempts at doing that, but this particular one is mine.
 
 tested with cargo `v1.84.1` but ought to work in any version with `--build-plan`. note, however, that build plan was removed in `1.93.0` in [this](https://github.com/rust-lang/cargo/pull/16212) fateful commit. if you want to go spelunking, the earliest cargo version with `--build-plan` looks like `1.28.0` all the way from the distant land of 2018. i absolutely *did not* test with that old of a cargo version and i'm sure the plan format changed a bunch there.
 
-for cargo `>= 1.93.0` the go side carries an **experimental** `build` subcommand that derives a build plan from cargo's `--unit-graph` output (the closest surviving replacement, still nightly-gated). see [`unit-graph-plan.md`](unit-graph-plan.md) for the design and [`go/readme.md`](go/readme.md) for the usage. correctness is best-effort while we figure out which corners of cargo's command-building actually matter for real crates.
+for cargo `>= 1.93.0` the go side carries an **experimental** `build` subcommand that derives a build plan from cargo's `--unit-graph` output (the closest surviving replacement, still nightly-gated). correctness is best-effort.
 
-end-to-end demos live under [`go/examples/`](go/examples/) -- each one builds a real crate inside an ephemeral container with cargo deleted from the run stage, to prove the plan executor can stand on its own. docker and podman both work (image refs are `docker.io/`-qualified).
+end-to-end demos live under [`go/examples/`](go/examples/) -- each one builds a real crate inside an ephemeral container with cargo deleted from the run stage, to prove the plan executor can stand on its own. docker and podman both work.
 
 ## successfully compiled
 
