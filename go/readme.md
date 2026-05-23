@@ -1,5 +1,11 @@
 # go version of not-quite-cargo
 
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/lczyk/not-quite-cargo?filename=go%2Fgo.mod)
+![GitHub Tag](https://img.shields.io/github/v/tag/lczyk/not-quite-cargo?label=release)
+[![lint_and_test](https://github.com/lczyk/not-quite-cargo/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/lczyk/not-quite-cargo/actions/workflows/lint_and_test.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/lczyk/not-quite-cargo/go.svg)](https://pkg.go.dev/github.com/lczyk/not-quite-cargo/go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lczyk/not-quite-cargo/go)](https://goreportcard.com/report/github.com/lczyk/not-quite-cargo/go)
+
 Not-quite-car**go**...
 
 This is an AI rewrite of the python version which was then audited for bits
@@ -19,14 +25,18 @@ only one binary.
 - `examples/sudo-unit-graph/` -- same end-to-end demo, but via cargo `--unit-graph` + experimental `nqc build`
 - `examples/fd-jemalloc/` -- compile fd with default features (pulls jemalloc-sys + autoconf tooling)
 - `examples/fd-no-features/` -- compile fd with `--no-default-features` (minimal, no native build deps)
+- `examples/fd-musl/` -- compile fd statically against musl (alpine target, no glibc loader on the runner)
+- `examples/eza-build-plan/` -- compile eza via `--build-plan` (default features)
 
 ## build
 
 ```
-make build      # ./bin/not-quite-cargo
-make test       # go test -race ./...
-make lint       # go vet + gofmt -l check
-make fmt        # gofmt -s -w
+make build         # ./bin/not-quite-cargo
+make test-unit     # go test -race ./...
+make test-examples # runs each examples/*/makefile end-to-end (needs docker or podman)
+make test          # test-unit + test-examples
+make lint          # go vet + gofmt -l check
+make fmt           # gofmt -s -w
 make clean
 ```
 
@@ -38,10 +48,17 @@ make clean
 
 ```
 cargo build -j1 -Z unstable-options --build-plan > build-plan.json
-./bin/not-quite-cargo patch build-plan.json
+./bin/not-quite-cargo patch \
+    --project-root="$PWD" --cargo-home="$CARGO_HOME" --inplace \
+    build-plan.json
 # ship to runner
 ./bin/not-quite-cargo run build-plan.json
 ```
+
+`patch` rewrites the build/cargo-home paths into `{{PROJECT_ROOT}}` /
+`{{CARGO_HOME}}` placeholders, so the runner can mount different
+concrete paths. `--inplace` writes the patched plan back over the input;
+drop it to get the patched plan on stdout instead.
 
 requires `-Z unstable-options` on nightly cargo, or `RUSTC_BOOTSTRAP=1` on
 stable.
@@ -51,33 +68,30 @@ stable.
 cargo 1.93.0 removed `--build-plan` ([rust-lang/cargo#16212][bp-removal]).
 the closest surviving replacement is `--unit-graph`, but it only carries
 the unit DAG + metadata; nqc derives a build-plan-shape file from it
-via the `build` subcommand. correctness is best-effort; see
-[`unit-graph-plan.md`][plan] at the repo root for the design notes and
-known limitations.
+via the `build` subcommand. correctness is best-effort.
 
 ```
 cargo build -Z unstable-options --unit-graph > unit-graph.json
 ./bin/not-quite-cargo build --os linux --arch aarch64 unit-graph.json > build-plan.json
-./bin/not-quite-cargo patch build-plan.json
+./bin/not-quite-cargo patch \
+    --project-root="$PWD" --cargo-home="$CARGO_HOME" --inplace \
+    build-plan.json
 ./bin/not-quite-cargo run build-plan.json
 ```
 
 flags on `build`:
 
 - `--os <name>` -- target OS: `linux` or `macos`. (v0 doesn't support
-  anything else.)
+  anything else.) required.
 - `--arch <name>` -- target arch: `aarch64` (verified path -- fd fixture
-  runs on it) or `x86_64` (allowed optimistically, not yet validated
-  against a fixture).
+  runs on it) or `x86_64`. required. accepts `arm64` / `amd64` aliases.
 - `--libc <name>` -- `gnu` (default) / `musl` on linux, or `none` on
   macos.
+- `--vendor <name>` -- override the vendor token in the target triple
+  (e.g. `alpine` for `aarch64-alpine-linux-musl`). default: `unknown`
+  (linux) / `apple` (macos).
 - `--rustc <name>` -- program string in the emitted plan; defaults to
   `rustc`.
-
-`--project-root` and `--cargo-home` are auto-derived from the input
-unit-graph (path+ pkg_id for the workspace, registry+ source paths
-for the cargo home). v0 scope -- linux + macos on aarch64 only. defaults to
-  `rustc` (every other flag is required).
 
 manifest loads are best-effort: when a Cargo.toml can't be found
 (captured plans often reference machines that don't have every dep's
@@ -87,4 +101,3 @@ metadata for that unit.
 the derived plan is written to stdout; pipe or redirect.
 
 [bp-removal]: https://github.com/rust-lang/cargo/pull/16212
-[plan]: ../unit-graph-plan.md
