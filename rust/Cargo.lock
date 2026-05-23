@@ -33,4 +33,3 @@ checksum = "9ab95735ea2c8fd51154d01e39cf13912a78071c2d89abc49a7ef102a7dd725a"
 [[package]]
 name = "version"
 version = "0.1.0"
-source = "git+https://github.com/lczyk/version?tag=rust%2Fv0.5.0#ca0bdafe821ee134d5c73da9b6a6c49368f28b20"
