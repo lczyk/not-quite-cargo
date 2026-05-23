@@ -120,9 +120,16 @@ fn cmd_patch(mut parser: lexopt::Parser) -> anyhow::Result<()> {
 
 fn cmd_run(mut parser: lexopt::Parser) -> anyhow::Result<()> {
     let mut build_plan: Option<PathBuf> = None;
+    let mut jobs_spec: Option<i32> = None;
 
     while let Some(arg) = parser.next()? {
         match arg {
+            Short('j') | Long("jobs") => {
+                let raw = parser.value()?.to_string_lossy().into_owned();
+                jobs_spec = Some(raw.parse::<i32>().with_context(|| {
+                    format!("--jobs must be an integer, got '{raw}'")
+                })?);
+            }
             Long("help") => {
                 print_run_help();
                 return Ok(());
@@ -139,7 +146,8 @@ fn cmd_run(mut parser: lexopt::Parser) -> anyhow::Result<()> {
     let build_plan = build_plan.context("build-plan.json is required")?;
 
     let logger = nqc::Logger::new();
-    let cfg = nqc::new_config(logger)?;
+    let mut cfg = nqc::new_config(logger)?;
+    cfg.jobs = nqc::resolve_jobs(jobs_spec);
     log_config(&cfg);
     nqc::run(&build_plan, &cfg)
 }
@@ -151,6 +159,7 @@ fn log_config(cfg: &nqc::Config) {
         .info(&format!("CARGO_HOME:   {}", cfg.cargo_home.display()));
     cfg.logger
         .info(&format!("RUSTC:        {}", cfg.rustc_path.display()));
+    cfg.logger.info(&format!("JOBS:         {}", cfg.jobs));
 }
 
 fn print_help() {
@@ -188,9 +197,12 @@ Options:
 fn print_run_help() {
     eprintln!(
         "\
-Usage: not-quite-cargo run <build-plan.json>
+Usage: not-quite-cargo run [-j N] <build-plan.json>
 
 Options:
-  --help   Show this help"
+  -j, --jobs <N>   Worker count. Default 1 (serial). 0 = max available cores.
+                   Positive N = up to N (capped at max). Negative N = max + N
+                   (floored at 1). E.g. -j=-1 = max-1.
+  --help           Show this help"
     );
 }

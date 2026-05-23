@@ -8,7 +8,7 @@ pub mod profile;
 pub mod run;
 pub mod topo;
 
-pub use config::{Config, new_config};
+pub use config::{Config, new_config, resolve_jobs};
 pub use deepreplace::deep_replace;
 pub use directives::parse_build_script_output;
 pub use logger::Logger;

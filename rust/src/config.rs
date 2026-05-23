@@ -10,6 +10,7 @@ pub struct Config {
     pub cargo_home: PathBuf,
     pub rustc_path: PathBuf,
     pub logger: Logger,
+    pub jobs: usize,
 }
 
 impl Config {
@@ -55,7 +56,63 @@ pub fn new_config(logger: Logger) -> anyhow::Result<Config> {
         cargo_home,
         rustc_path,
         logger,
+        jobs: 1,
     })
+}
+
+/// Resolve a user-provided -j/--jobs spec into a concrete worker count.
+///
+/// - `None` -> 1 (serial)
+/// - `Some(0)` -> max available
+/// - `Some(n)` where n > 0 -> min(n, max)
+/// - `Some(n)` where n < 0 -> max(1, max + n)
+pub fn resolve_jobs(spec: Option<i32>) -> usize {
+    let max = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+    resolve_jobs_with_max(spec, max)
+}
+
+fn resolve_jobs_with_max(spec: Option<i32>, max: usize) -> usize {
+    match spec {
+        None => 1,
+        Some(0) => max,
+        Some(n) if n > 0 => (n as usize).min(max),
+        Some(n) => {
+            let offset = (-n) as usize;
+            max.saturating_sub(offset).max(1)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_jobs_default_is_serial() {
+        assert_eq!(resolve_jobs_with_max(None, 8), 1);
+    }
+
+    #[test]
+    fn resolve_jobs_zero_is_max() {
+        assert_eq!(resolve_jobs_with_max(Some(0), 8), 8);
+    }
+
+    #[test]
+    fn resolve_jobs_positive_capped() {
+        assert_eq!(resolve_jobs_with_max(Some(3), 8), 3);
+        assert_eq!(resolve_jobs_with_max(Some(99), 8), 8);
+    }
+
+    #[test]
+    fn resolve_jobs_negative_offset() {
+        assert_eq!(resolve_jobs_with_max(Some(-1), 8), 7);
+        assert_eq!(resolve_jobs_with_max(Some(-3), 8), 5);
+        // floor at 1
+        assert_eq!(resolve_jobs_with_max(Some(-99), 8), 1);
+        assert_eq!(resolve_jobs_with_max(Some(-8), 8), 1);
+    }
 }
 
 fn home_dir() -> PathBuf {
