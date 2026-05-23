@@ -19,6 +19,7 @@ SCRIPT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 RUST_ROOT   := $(SCRIPT_DIR)/../..
 WORKDIR    := $(SCRIPT_DIR)/work
 BINARY     := $(WORKDIR)/not-quite-cargo
+BINARY_CROSS := $(WORKDIR)/not-quite-cargo-cross
 SUDO_RS_DIR := $(WORKDIR)/sudo-rs
 
 # Map host -m output to the rust/docker arch token (arm64 / amd64).
@@ -29,7 +30,7 @@ help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: all
-all: image binary clone plan run prove  ## Run the full demo end to end
+all: image binary binary-cross clone plan run prove  ## Run the full demo end to end
 
 .PHONY: image
 image:  ## Build the rust+libpam demo image
@@ -41,23 +42,26 @@ image:  ## Build the rust+libpam demo image
 	fi
 
 .PHONY: binary
-binary: $(BINARY)  ## build nqc for linux/<arch>
+binary: $(BINARY)  ## build nqc for host (used by the patch step)
 
-$(BINARY): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $(RUST_ROOT)/build.rs makefile
-	@echo "[demo] cross-building not-quite-cargo (rust) for linux/$(HOST_ARCH)"
+$(BINARY): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $(RUST_ROOT)/Cargo.lock $(RUST_ROOT)/build.rs makefile
+	@echo "[demo] building not-quite-cargo for host"
 	mkdir -p $(WORKDIR)
-	cd $(RUST_ROOT) && \
-		RUSTFLAGS="-C target-feature=+crt-static" \
-		cargo build --release --target $(shell uname -m)-unknown-linux-musl 2>/dev/null; \
-		if [ -f target/$(shell uname -m)-unknown-linux-musl/release/not-quite-cargo ]; then \
-			cp target/$(shell uname -m)-unknown-linux-musl/release/not-quite-cargo $(BINARY); \
-		else \
-			echo "[demo] musl cross-compile not available, trying gnu build"; \
-			cd $(RUST_ROOT) && \
-			CARGO_TARGET_DIR=$(abspath $(WORKDIR))/rust-target \
-			cargo build --release; \
-			cp $(WORKDIR)/rust-target/release/not-quite-cargo $(BINARY); \
-		fi
+	cd $(RUST_ROOT) && cargo build --release
+	cp $(RUST_ROOT)/target/release/not-quite-cargo $(BINARY)
+
+.PHONY: binary-cross
+binary-cross: $(BINARY_CROSS)  ## compile nqc for linux inside the plan image
+
+$(BINARY_CROSS): $(shell find $(RUST_ROOT)/src -name '*.rs') $(RUST_ROOT)/Cargo.toml $(RUST_ROOT)/Cargo.lock $(RUST_ROOT)/build.rs makefile
+	@echo "[demo] cross-compiling not-quite-cargo for linux inside $(PLAN_IMAGE)"
+	mkdir -p $(WORKDIR)
+	$(DOCKER) run --rm \
+		--platform=linux/$(HOST_ARCH) \
+		--volume $(RUST_ROOT):/rust \
+		--volume $(WORKDIR):/out \
+		--workdir /rust \
+		$(PLAN_IMAGE) exec sh -c 'set -e; cargo build --release; cp target/release/not-quite-cargo /out/not-quite-cargo-cross'
 
 .PHONY: clone
 clone: $(SUDO_RS_DIR)  ## clone sudo-rs at the pinned ref
@@ -81,13 +85,13 @@ plan: binary clone  ## generate & patch build-plan.json
 	$(BINARY) patch --project-root=/work --cargo-home=/cargo-home --inplace $(SUDO_RS_DIR)/build-plan.json
 
 .PHONY: run
-run: image binary plan  ## execute the patched plan, no cargo, no network
+run: image binary-cross plan  ## execute the patched plan, no cargo, no network
 	@echo "[demo] runner: executing patched plan (network=none, cargo removed)"
 	$(DOCKER) run --rm \
 		--platform=linux/$(HOST_ARCH) \
 		--network=none \
 		--volume $(SUDO_RS_DIR):/work \
-		--volume $(BINARY):/usr/local/bin/not-quite-cargo:ro \
+		--volume $(BINARY_CROSS):/usr/local/bin/not-quite-cargo:ro \
 		--volume $(WORKDIR)/cargo-home:/cargo-home:ro \
 		--workdir /work \
 		-e CARGO_HOME=/cargo-home \
@@ -111,7 +115,7 @@ shell: image  ## drop into a shell in the demo image
 	$(DOCKER) run --rm -it \
 		--platform=linux/$(HOST_ARCH) \
 		--volume $(SUDO_RS_DIR):/work \
-		--volume $(BINARY):/usr/local/bin/not-quite-cargo:ro \
+		--volume $(BINARY_CROSS):/usr/local/bin/not-quite-cargo:ro \
 		--workdir /work \
 		$(DEMO_IMAGE) exec sh
 
