@@ -89,6 +89,7 @@ type BuildCommand struct {
 	OS        string `long:"os" required:"yes" description:"Target OS: linux or macos"`
 	Arch      string `long:"arch" required:"yes" description:"Target arch: aarch64 or x86_64"`
 	Libc      string `long:"libc" default:"gnu" description:"Target libc: gnu / musl (linux), or 'none' (macos)"`
+	Vendor    string `long:"vendor" description:"Override the target-triple vendor token (e.g. alpine for aarch64-alpine-linux-musl). Default: unknown (linux) / apple (macos)"`
 	RustcPath string `long:"rustc" default:"rustc" description:"rustc program name to embed in the plan"`
 
 	Args struct {
@@ -107,7 +108,7 @@ func (c *BuildCommand) Execute(_ []string) error {
 	// the cargo home. Build handles the derivation when these are empty
 	// in opts.
 	out, err := unitgraph.Build(ug, unitgraph.BuildOptions{
-		Target:    unitgraph.Target{OS: c.OS, Arch: normaliseArch(c.Arch), Libc: c.Libc},
+		Target:    unitgraph.Target{OS: c.OS, Arch: normaliseArch(c.Arch), Libc: c.Libc, VendorOverride: c.Vendor},
 		RustcPath: c.RustcPath,
 	})
 	if err != nil {

@@ -15,6 +15,11 @@ type Unit struct {
 	Mode         string      `json:"mode"`     // "build", "test", "check", "doc", "run-custom-build", ...
 	Features     []string    `json:"features"`
 	Dependencies []UnitDep   `json:"dependencies"`
+	// IsStd is set to true by cargo for sysroot / -Z build-std units
+	// (std, core, alloc, panic_abort, compiler_builtins, ...). Used to
+	// keep these out of workspace-root derivation -- their path+file://
+	// sources live under the rustup/sysroot dir, not the workspace.
+	IsStd bool `json:"is_std"`
 }
 
 // UnitTarget models the `target` sub-object inside a unit.

@@ -36,6 +36,12 @@ type Target struct {
 	OS   string // linux | macos
 	Arch string // aarch64 | x86_64
 	Libc string // gnu | musl (linux only) | none (macos)
+	// VendorOverride lets callers replace the default vendor token in
+	// the rust target triple. Defaults are "unknown" for linux (matching
+	// rust-lang's official builds) and "apple" for macos; set this to
+	// "alpine" (etc.) to target a distro that ships its own triple, e.g.
+	// aarch64-alpine-linux-musl.
+	VendorOverride string
 }
 
 // Validate enforces the supported scope.
@@ -72,7 +78,7 @@ func (t Target) Triple() string {
 	case "macos":
 		return t.Arch + "-apple-darwin"
 	case "linux":
-		return t.Arch + "-unknown-linux-" + t.Libc
+		return t.Arch + "-" + t.Vendor() + "-linux-" + t.Libc
 	default:
 		return ""
 	}
@@ -95,8 +101,13 @@ func (t Target) Endian() string {
 	return "little"
 }
 
-// Vendor returns the rust target-triple vendor token.
+// Vendor returns the rust target-triple vendor token. Honors
+// VendorOverride when set; otherwise defaults to "apple" for macos and
+// "unknown" for everything else (matches rust-lang's official builds).
 func (t Target) Vendor() string {
+	if t.VendorOverride != "" {
+		return t.VendorOverride
+	}
 	switch t.OS {
 	case "macos":
 		return "apple"

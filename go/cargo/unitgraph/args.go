@@ -22,6 +22,13 @@ type ArgsInputs struct {
 	// for `-L dependency=`. Same dir as Out.Primary's parent.
 	DepsDir string
 
+	// HostDepsDir, when non-empty, becomes a second `-L dependency=`
+	// entry pointing at the host deps tree. Used for cross-compile
+	// target units that pull in proc-macro deps (which always land in
+	// the host deps dir, not the target one). Empty for host units or
+	// non-cross builds.
+	HostDepsDir string
+
 	// IncrementalDir, if non-empty, becomes `-C incremental=<dir>` so
 	// rustc can cache fingerprint info across runs. The orchestrator
 	// passes a per-unit `target/<profile>/incremental/<crate>-<hash>`
@@ -33,6 +40,19 @@ type ArgsInputs struct {
 	// packages (registry / git deps) so a dep's `#![deny(...)]`
 	// settings don't fail the local build.
 	CapLints bool
+
+	// CrtStatic, when true, adds `-C target-feature=+crt-static` so
+	// rustc statically links the C runtime (and libgcc on musl targets
+	// that don't ship a libgcc_s-free libstd). Only meaningful for
+	// non-host units of a musl target; the orchestrator decides when to
+	// pass it.
+	CrtStatic bool
+
+	// TargetTriple, when non-empty, becomes `--target=<triple>` so rustc
+	// resolves crate metadata against the right target spec. Orchestrator
+	// passes the configured target for non-host units (host units run on
+	// the planner's host so don't get --target).
+	TargetTriple string
 }
 
 // RustcArgs derives the literal rustc command line for a single unit.
@@ -100,9 +120,23 @@ func RustcArgs(in ArgsInputs) ([]string, error) {
 		args = append(args, "-C", "incremental="+in.IncrementalDir)
 	}
 
+	// Cross-compile target. Host units (proc macros, build scripts) get
+	// no --target -- they're built for the planner's host.
+	if in.TargetTriple != "" {
+		args = append(args, "--target="+in.TargetTriple)
+	}
+
+	// Statically link the C runtime (and libgcc on musl) when asked.
+	if in.CrtStatic {
+		args = append(args, "-C", "target-feature=+crt-static")
+	}
+
 	// -L dependency=<deps-dir> so dependent rmeta lookups succeed.
 	if in.DepsDir != "" {
 		args = append(args, "-L", "dependency="+in.DepsDir)
+	}
+	if in.HostDepsDir != "" && in.HostDepsDir != in.DepsDir {
+		args = append(args, "-L", "dependency="+in.HostDepsDir)
 	}
 
 	// Resolved externs. Deterministic order so two runs over the same

@@ -206,7 +206,10 @@ func preDerive(u *Unit, opt BuildOptions) (unitDerived, string, error) {
 	isRunCustom := u.Mode == "run-custom-build"
 	if isRunCustom {
 		buildBase := filepath.Join(opt.ProjectRoot, "target")
-		if u.Platform != nil && *u.Platform != "" && *u.Platform != opt.HostTriple {
+		// Same rationale as platformDir: honor an explicit Platform even
+		// when it matches the host. cargo always uses target/<triple>/
+		// when --target is set.
+		if u.Platform != nil && *u.Platform != "" {
 			buildBase = filepath.Join(buildBase, *u.Platform)
 		}
 		buildBase = filepath.Join(buildBase, profileDir)
@@ -229,11 +232,19 @@ func preDerive(u *Unit, opt BuildOptions) (unitDerived, string, error) {
 // platformDir returns the triple to embed in the target directory path,
 // or empty for host-targeted units. Host units always land under
 // target/<profile>/deps regardless of the wider --target setting.
+//
+// NOTE: when cargo is invoked with --target=<triple>, every non-host
+// unit gets platform=<triple> in the unit-graph *even if that triple
+// matches the host's*. We mirror cargo by always using the explicit
+// triple in the path when set, rather than only when it differs from
+// the host. Otherwise -Z build-std (which always sets --target) would
+// emit paths inconsistent with what cargo itself produces.
 func platformDir(u *Unit, host string) string {
+	_ = host
 	if u.IsHost() {
 		return ""
 	}
-	if u.Platform != nil && *u.Platform != "" && *u.Platform != host {
+	if u.Platform != nil && *u.Platform != "" {
 		return *u.Platform
 	}
 	return ""
@@ -259,14 +270,38 @@ func buildInvocation(u *Unit, idx int, derived []unitDerived, opt BuildOptions, 
 	if u.Profile.Incremental {
 		incDir = incrementalDirFor(opt.ProjectRoot, profileDir(u.Profile.Name), u, d.hash)
 	}
+	// Cross-compile target units need the host deps dir too -- proc-
+	// macros (which they may depend on transitively) always land in the
+	// host deps dir, not the target one.
+	var hostDepsDir string
+	if !u.IsHost() {
+		hostDepsDir = filepath.Join(opt.ProjectRoot, "target", profileDir(u.Profile.Name), "deps")
+	}
+
 	args, err := RustcArgs(ArgsInputs{
 		Unit:           u,
 		Hash:           d.hash,
 		Out:            d.outputs,
 		Externs:        externs,
 		DepsDir:        d.depsDir,
+		HostDepsDir:    hostDepsDir,
 		IncrementalDir: incDir,
 		CapLints:       !isPrimaryPkg(u.PkgID),
+		// For musl target units (i.e. non-host: build scripts + proc
+		// macros run on the host loader and shouldn't be statically
+		// linked), force crt-static so the binary doesn't pull in
+		// libgcc_s dynamically.
+		CrtStatic: opt.Target.Libc == "musl" && !u.IsHost(),
+		// Pass --target=<triple> only when the unit isn't host. For
+		// non-cross builds (no --target on the cargo side), this is the
+		// host triple anyway, so we still emit it -- rustc accepts
+		// --target=<host-triple> and produces the same artefact.
+		TargetTriple: func() string {
+			if u.IsHost() {
+				return ""
+			}
+			return opt.Target.Triple()
+		}(),
 	})
 	if err != nil {
 		return Invocation{}, err
@@ -487,6 +522,11 @@ func incrementalDirFor(projectRoot, profileDir string, u *Unit, hash string) str
 func deriveProjectRoot(ug *UnitGraph) string {
 	paths := []string{}
 	for i := range ug.Units {
+		// Skip sysroot / -Z build-std units -- their path+file:// pkg_ids
+		// point at the rustup library dir, not the workspace.
+		if ug.Units[i].IsStd {
+			continue
+		}
 		id, err := ParsePkgID(ug.Units[i].PkgID)
 		if err != nil || id.Kind != PkgIDPath {
 			continue
