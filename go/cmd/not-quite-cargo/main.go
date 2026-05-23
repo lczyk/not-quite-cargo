@@ -36,6 +36,7 @@ type PatchCommand struct {
 	ProjectRoot string  `long:"project-root" required:"yes" description:"Concrete path to replace with {{PROJECT_ROOT}} in the plan"`
 	CargoHome   string  `long:"cargo-home" required:"yes" description:"Concrete path to replace with {{CARGO_HOME}} in the plan"`
 	InPlace     bool    `long:"inplace" description:"Write the patched plan back over the input file (atomic) instead of stdout"`
+	Profile     string  `long:"profile" description:"Rewrite plan for target profile: 'release' or 'debug'"`
 	Args        planArg `positional-args:"yes" required:"yes"`
 }
 
@@ -51,6 +52,13 @@ func (c *PatchCommand) Execute(_ []string) error {
 	patched, err := cargo.PatchPlan(plan, c.ProjectRoot, c.CargoHome)
 	if err != nil {
 		return err
+	}
+	if c.Profile != "" {
+		spec, ok := cargo.ParseProfile(c.Profile)
+		if !ok {
+			return fmt.Errorf("--profile must be 'release' or 'debug', got %q", c.Profile)
+		}
+		cargo.RewriteProfile(patched, spec)
 	}
 	body, err := json.MarshalIndent(patched, "", "    ")
 	if err != nil {
