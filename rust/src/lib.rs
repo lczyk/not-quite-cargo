@@ -6,7 +6,6 @@ pub mod patch;
 pub mod plan;
 pub mod run;
 pub mod topo;
-pub mod version;
 
 pub use config::{Config, new_config};
 pub use deepreplace::deep_replace;

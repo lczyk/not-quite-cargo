@@ -4,7 +4,7 @@ use anyhow::Context;
 use lexopt::prelude::*;
 
 use not_quite_cargo as nqc;
-use not_quite_cargo::version;
+use version::version;
 
 fn main() -> anyhow::Result<()> {
     let mut parser = lexopt::Parser::from_env();
