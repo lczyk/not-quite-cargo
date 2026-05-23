@@ -1,10 +1,10 @@
 .SUFFIXES:
 
-# Strange-loop demo: nqc compiles nqc. Six stages
+# Quine demo: nqc compiles nqc. Six stages
 # (image -> binary -> cross -> clone -> plan -> prove). Same shape as
 # sudo-build-plan, but the project being built is nqc itself. `prove`
-# does the loop: cross nqc builds nqc, then the freshly built nqc
-# builds nqc again from scratch in the same container.
+# closes the loop: cross nqc builds nqc, then the freshly built nqc
+# builds nqc again from scratch in the same container -- five rounds.
 #
 # Overridable knobs:
 #   VERSION_REF=<tag-or-sha>   pinned version-crate revision
@@ -13,7 +13,7 @@
 VERSION_REF        ?= rust/v0.5.0
 VERSION_REPO       ?= https://github.com/lczyk/version
 DOCKER             ?= docker
-DEMO_IMAGE         ?= nqc-strange-loop:1.85-24.04
+DEMO_IMAGE         ?= nqc-quine:1.85-24.04
 PLAN_IMAGE         ?= docker.io/ubuntu/rust:1.85-24.04_edge
 CROSS_IMAGE        ?= docker.io/ubuntu/rust:1.85-24.04_edge
 
@@ -37,7 +37,7 @@ help:  ## Show this help
 all: clean image binary cross clone plan prove  ## Run the full demo end to end (wipes work/ first)
 
 .PHONY: image
-image:  ## Build the strange-loop demo image (no cargo)
+image:  ## Build the quine demo image (no cargo)
 	@if ! $(DOCKER) image inspect $(DEMO_IMAGE) >/dev/null 2>&1; then \
 		echo "[demo] building demo image $(DEMO_IMAGE)"; \
 		$(DOCKER) build --platform=linux/$(HOST_ARCH) -t $(DEMO_IMAGE) $(SCRIPT_DIR); \
@@ -92,7 +92,7 @@ plan: binary clone  ## generate & patch build-plan.json
 	$(BINARY) patch --project-root=/work --cargo-home=/cargo-home --inplace $(PLAN_FILE)
 
 .PHONY: prove
-prove: image cross plan  ## close the strange loop: cross nqc builds nqc, then built nqc rebuilds nqc
+prove: image cross plan  ## close the quine: cross nqc builds nqc, then built nqc rebuilds nqc
 	@echo "[demo] prove: fresh rebuild from cross + source inside $(DEMO_IMAGE)"
 	rm -rf $(TARGET_PROVE)
 	mkdir -p $(TARGET_PROVE)

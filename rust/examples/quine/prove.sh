@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prove stage. Fresh demo-image container (network off, no cargo).
-# Closes the strange loop: build nqc with the cross-compiled nqc,
+# Closes the quine: build nqc with the cross-compiled nqc,
 # then replace the cross nqc with the freshly built one and rebuild
 # nqc again with itself.
 set -e
