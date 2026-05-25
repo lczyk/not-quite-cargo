@@ -37,11 +37,13 @@ type PatchCommand struct {
 	CargoHome   string  `long:"cargo-home" required:"yes" description:"Concrete path to replace with {{CARGO_HOME}} in the plan"`
 	InPlace     bool    `long:"inplace" description:"Write the patched plan back over the input file (atomic) instead of stdout"`
 	Profile     string  `long:"profile" description:"Rewrite plan for target profile: 'release' or 'debug'"`
+	Linker      string  `long:"linker" description:"Bake '-C linker=<path>' into every rustc invocation in the patched plan. Same flag exists on 'run' for ad-hoc overrides (last value wins)."`
 	Args        planArg `positional-args:"yes" required:"yes"`
 }
 
 type RunCommand struct {
-	Args planArg `positional-args:"yes" required:"yes"`
+	Linker string  `long:"linker" description:"Path to a linker binary to inject as '-C linker=<path>' on every rustc invocation. Useful in environments where rustc's default linker driver (cc) is absent."`
+	Args   planArg `positional-args:"yes" required:"yes"`
 }
 
 func (c *PatchCommand) Execute(_ []string) error {
@@ -49,7 +51,7 @@ func (c *PatchCommand) Execute(_ []string) error {
 	if err != nil {
 		return err
 	}
-	patched, err := cargo.PatchPlan(plan, c.ProjectRoot, c.CargoHome)
+	patched, err := cargo.PatchPlan(plan, c.ProjectRoot, c.CargoHome, c.Linker)
 	if err != nil {
 		return err
 	}
@@ -81,6 +83,7 @@ func (c *RunCommand) Execute(_ []string) error {
 	if err != nil {
 		return err
 	}
+	cfg.Linker = c.Linker
 	logConfig(cfg)
 	return cargo.Run(c.Args.BuildPlan, cfg)
 }
@@ -160,6 +163,9 @@ func logConfig(cfg *cargo.Config) {
 	cfg.Logger.Infof("PROJECT_ROOT: %s", cfg.ProjectRoot)
 	cfg.Logger.Infof("CARGO_HOME:   %s", cfg.CargoHome)
 	cfg.Logger.Infof("RUSTC:        %s", cfg.RustcPath)
+	if cfg.Linker != "" {
+		cfg.Logger.Infof("LINKER:       %s (injected as -C linker=...)", cfg.Linker)
+	}
 }
 
 func main() {

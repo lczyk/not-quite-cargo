@@ -13,6 +13,11 @@ type Config struct {
 	ProjectRoot string
 	CargoHome   string
 	RustcPath   string
+	// Linker, when non-empty, is injected as `-C linker=<Linker>` on every
+	// rustc invocation at run time. Useful when the rock's default linker
+	// (typically `cc`) is absent and we want to point rustc at something
+	// else (e.g. wild) without re-recording the build plan.
+	Linker string
 
 	Logger Logger
 }

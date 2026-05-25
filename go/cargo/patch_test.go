@@ -17,7 +17,7 @@ func patchFile(t *testing.T, path, projectRoot, cargoHome string) []byte {
 	t.Helper()
 	plan, err := loadPlanJSON(path)
 	assert.NoError(t, err)
-	out, err := PatchPlan(plan, projectRoot, cargoHome)
+	out, err := PatchPlan(plan, projectRoot, cargoHome, "")
 	assert.NoError(t, err)
 	body, err := json.MarshalIndent(out, "", "    ")
 	assert.NoError(t, err)
@@ -86,18 +86,48 @@ func TestPatch_DiagnosticWidthTwoArg(t *testing.T) {
 			},
 		},
 	}
-	out, err := PatchPlan(plan, "/proj", "/cargo")
+	out, err := PatchPlan(plan, "/proj", "/cargo", "")
 	assert.NoError(t, err)
 	args := out["invocations"].([]any)[0].(map[string]any)["args"].([]any)
 	want := []any{"--edition=2021", "--crate-name", "x", "--out-dir", "/tmp/out"}
 	assert.EqualCmpAny(t, args, want, func(a, b any) bool { return reflect.DeepEqual(a, b) })
 }
 
+func TestPatch_LinkerInjection(t *testing.T) {
+	// With a non-empty linker, every rustc invocation should grow a trailing
+	// `-C linker=<path>` pair. Non-rustc invocations are left alone.
+	plan := map[string]any{
+		"invocations": []any{
+			map[string]any{
+				"program": "rustc",
+				"args":    []any{"--crate-name", "x"},
+				"env":     map[string]any{},
+				"cwd":     "/proj",
+			},
+			map[string]any{
+				"program": "/usr/bin/python3",
+				"args":    []any{"build.py"},
+				"env":     map[string]any{},
+				"cwd":     "/proj",
+			},
+		},
+	}
+	out, err := PatchPlan(plan, "/proj", "/cargo", "/usr/bin/wild")
+	assert.NoError(t, err)
+	invs := out["invocations"].([]any)
+	rustcArgs := invs[0].(map[string]any)["args"].([]any)
+	wantRustc := []any{"--crate-name", "x", "-C", "linker=/usr/bin/wild"}
+	assert.EqualCmpAny(t, rustcArgs, wantRustc, func(a, b any) bool { return reflect.DeepEqual(a, b) })
+	otherArgs := invs[1].(map[string]any)["args"].([]any)
+	wantOther := []any{"build.py"}
+	assert.EqualCmpAny(t, otherArgs, wantOther, func(a, b any) bool { return reflect.DeepEqual(a, b) })
+}
+
 func TestPatch_EmptyArgsError(t *testing.T) {
 	plan := map[string]any{"invocations": []any{}}
-	_, err := PatchPlan(plan, "", "/cargo")
+	_, err := PatchPlan(plan, "", "/cargo", "")
 	assert.That(t, err != nil, "expected error when projectRoot is empty")
-	_, err = PatchPlan(plan, "/proj", "")
+	_, err = PatchPlan(plan, "/proj", "", "")
 	assert.That(t, err != nil, "expected error when cargoHome is empty")
 }
 

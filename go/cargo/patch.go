@@ -15,7 +15,12 @@ var strippedEnvKeys = []string{"CARGO", "PROJECT_ROOT", "CARGO_HOME", "RUSTC"}
 // replaced with `{{RUSTC}}`. Pure transform -- no file IO, no env reads. The
 // `{{RUSTC}}` placeholder is never written to disk for any other field; rustc
 // is resolved at run time.
-func PatchPlan(plan map[string]any, projectRoot, cargoHome string) (map[string]any, error) {
+//
+// If `linker` is non-empty, `-C linker=<linker>` is appended to the args of
+// every rustc invocation, baking the choice into the patched plan. The same
+// flag exists on the run command, which takes precedence (rustc honours the
+// last `-C linker=...` on the command line).
+func PatchPlan(plan map[string]any, projectRoot, cargoHome, linker string) (map[string]any, error) {
 	if projectRoot == "" {
 		return nil, fmt.Errorf("PatchPlan: projectRoot is required")
 	}
@@ -44,7 +49,7 @@ func PatchPlan(plan map[string]any, projectRoot, cargoHome string) (map[string]a
 		// Copy + mutate to avoid touching the caller's map.
 		clone := map[string]any{}
 		maps.Copy(clone, inv)
-		patchInvocation(clone)
+		patchInvocation(clone, linker)
 		patched[i] = DeepReplace(clone, reverse)
 	}
 	out["invocations"] = patched
@@ -66,10 +71,14 @@ func PatchPlan(plan map[string]any, projectRoot, cargoHome string) (map[string]a
 
 // patchInvocation applies the structural rewrites that aren't pure string
 // replacement: swap program=rustc to a placeholder, strip injected env keys,
-// drop --diagnostic-width which pins terminal width on the patching machine.
-func patchInvocation(inv map[string]any) {
+// drop --diagnostic-width which pins terminal width on the patching machine,
+// and (when linker is non-empty) append `-C linker=<linker>` to the args of
+// rustc invocations.
+func patchInvocation(inv map[string]any, linker string) {
+	isRustc := false
 	if prog, ok := inv["program"].(string); ok && prog == "rustc" {
 		inv["program"] = "{{RUSTC}}"
+		isRustc = true
 	}
 	if env, ok := inv["env"].(map[string]any); ok {
 		for _, k := range strippedEnvKeys {
@@ -95,6 +104,9 @@ func patchInvocation(inv map[string]any) {
 				}
 			}
 			filtered = append(filtered, a)
+		}
+		if isRustc && linker != "" {
+			filtered = append(filtered, "-C", "linker="+linker)
 		}
 		inv["args"] = filtered
 	}

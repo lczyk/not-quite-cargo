@@ -72,6 +72,13 @@ func Run(path string, cfg *Config) error {
 			program = cfg.RustcPath
 		}
 
+		// Inject -C linker=... on rustc invocations when configured. Done at
+		// run time (not patch) so the patched plan stays portable across
+		// runtimes with different linker availability.
+		if cfg.Linker != "" && program == cfg.RustcPath {
+			args = append(args, "-C", "linker="+cfg.Linker)
+		}
+
 		// Apply directives from any build script for the same package that
 		// has already run.
 		invEnv := map[string]string{}
