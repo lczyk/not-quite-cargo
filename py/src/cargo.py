@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from typing import TypeVar, no_type_check
 
 __author__ = "Marcin Konowalczyk"
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 __changelog__ = [
     ("0.3.0", "deterministic deep_replace, atomic patch write, two-arg diagnostic-width, warn on empty build-script values", "@lczyk"),
