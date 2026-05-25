@@ -6,6 +6,9 @@ import "strings"
 type CustomBuildDirectives struct {
 	RustcFlags []string
 	EnvVars    map[string]string
+	// Freeform cargo:KEY=VAL lines. Forwarded to downstream build scripts
+	// as DEP_<LINKS>_<KEY> env vars; see run.go.
+	Metadata map[string]string
 }
 
 var ignoredDirectiveKeys = map[string]struct{}{
@@ -22,6 +25,7 @@ func ParseBuildScriptOutput(output string, logger Logger) *CustomBuildDirectives
 	d := &CustomBuildDirectives{
 		RustcFlags: []string{},
 		EnvVars:    map[string]string{},
+		Metadata:   map[string]string{},
 	}
 
 	for _, raw := range strings.Split(output, "\n") {
@@ -65,7 +69,13 @@ func ParseBuildScriptOutput(output string, logger Logger) *CustomBuildDirectives
 				logger.Warnf("malformed rustc-env directive: %s", raw)
 			}
 		default:
-			logger.Warnf("unknown build script directive: %s", raw)
+			// rustc-* keys we don't handle are real gaps; warn. Anything else
+			// is freeform metadata for downstream -sys consumers (see run.go).
+			if strings.HasPrefix(key, "rustc-") {
+				logger.Warnf("unknown build script directive: %s", raw)
+				continue
+			}
+			d.Metadata[key] = value
 		}
 	}
 	return d

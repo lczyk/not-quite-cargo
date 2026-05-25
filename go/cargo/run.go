@@ -55,6 +55,16 @@ func Run(path string, cfg *Config) error {
 
 	directives := map[string]*CustomBuildDirectives{}
 
+	// pkg name -> manifest links value (e.g. libnghttp2-sys -> nghttp2),
+	// captured from CARGO_MANIFEST_LINKS on run-custom-build invocations.
+	linksByPkg := map[string]string{}
+
+	// inv.Deps are indices into the original plan order; map them back.
+	byNumber := make(map[int]*Invocation, len(invs))
+	for i := range invs {
+		byNumber[invs[i].Number] = &invs[i]
+	}
+
 	for i, inv := range ordered {
 		args := append([]string(nil), inv.Args...)
 		program := inv.Program
@@ -72,6 +82,34 @@ func Run(path string, cfg *Config) error {
 			args = append(args, d.RustcFlags...)
 			for k, v := range d.EnvVars {
 				invEnv[k] = v
+			}
+		}
+
+		// Forward `cargo:KEY=VAL` metadata from dep -sys crates as
+		// DEP_<LINKS>_<KEY> env vars. Cargo uppercases both tokens and
+		// rewrites '-' as '_'. Needed for chains like libnghttp2-sys ->
+		// curl-sys, where curl-sys reads DEP_NGHTTP2_INCLUDE in its
+		// build script.
+		seenDeps := map[string]struct{}{}
+		for _, depIdx := range inv.Deps {
+			depInv, ok := byNumber[depIdx]
+			if !ok {
+				continue
+			}
+			pkg := depInv.PackageName
+			if _, dup := seenDeps[pkg]; dup {
+				continue
+			}
+			seenDeps[pkg] = struct{}{}
+			linksName := linksByPkg[pkg]
+			d, hasDir := directives[pkg]
+			if linksName == "" || !hasDir || len(d.Metadata) == 0 {
+				continue
+			}
+			linksTok := strings.ReplaceAll(strings.ToUpper(linksName), "-", "_")
+			for k, v := range d.Metadata {
+				keyTok := strings.ReplaceAll(strings.ToUpper(k), "-", "_")
+				invEnv["DEP_"+linksTok+"_"+keyTok] = v
 			}
 		}
 
@@ -113,6 +151,9 @@ func Run(path string, cfg *Config) error {
 
 		if inv.CompileMode == "run-custom-build" {
 			directives[inv.PackageName] = ParseBuildScriptOutput(stdout.String(), logger)
+			if links, ok := inv.Env["CARGO_MANIFEST_LINKS"]; ok && links != "" {
+				linksByPkg[inv.PackageName] = links
+			}
 		}
 	}
 

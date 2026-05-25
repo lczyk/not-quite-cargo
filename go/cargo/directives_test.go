@@ -17,6 +17,7 @@ func TestParseBuildScriptOutput(t *testing.T) {
 		input     string
 		wantFlags []string
 		wantEnv   map[string]string
+		wantMeta  map[string]string
 		wantWarns int
 	}{
 		{
@@ -81,8 +82,15 @@ func TestParseBuildScriptOutput(t *testing.T) {
 			wantWarns: 1,
 		},
 		{
-			name:      "unknown key warns",
-			input:     "cargo:something-new=value",
+			name:      "metadata captured",
+			input:     "cargo:include=/some/path\ncargo:root=/another",
+			wantFlags: []string{},
+			wantEnv:   map[string]string{},
+			wantMeta:  map[string]string{"include": "/some/path", "root": "/another"},
+		},
+		{
+			name:      "unknown rustc-* key warns",
+			input:     "cargo:rustc-something-new=value",
 			wantFlags: []string{},
 			wantEnv:   map[string]string{},
 			wantWarns: 1,
@@ -116,6 +124,11 @@ func TestParseBuildScriptOutput(t *testing.T) {
 			got := ParseBuildScriptOutput(tc.input, log)
 			assert.EqualArrays(t, got.RustcFlags, tc.wantFlags, "flags")
 			assert.EqualMaps(t, got.EnvVars, tc.wantEnv, "env")
+			wantMeta := tc.wantMeta
+			if wantMeta == nil {
+				wantMeta = map[string]string{}
+			}
+			assert.EqualMaps(t, got.Metadata, wantMeta, "metadata")
 			assert.Equal(t, len(log.warnings), tc.wantWarns, "warnings: %v", log.warnings)
 		})
 	}
