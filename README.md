@@ -29,3 +29,4 @@ end-to-end demos live under [`go/examples/`](go/examples/) -- each one builds a 
 - [fd](https://github.com/sharkdp/fd)
 - [eza](https://github.com/eza-community/eza)
 - [uutils/coreutils](https://github.com/uutils/coreutils)
+- [rust-lang/cargo](https://github.com/rust-lang/cargo) (the quine: cargo builds cargo)

@@ -28,6 +28,7 @@ it takes a cargo `--build-plan` (or, for cargo 1.93+, a `--unit-graph`), `patch`
 - `examples/fd-musl/` -- compile fd statically against musl (alpine target, no glibc loader on the runner)
 - `examples/eza-build-plan/` -- compile eza via `--build-plan` (default features)
 - `examples/coreutils-build-plan/` -- compile uutils/coreutils multicall binary via `--build-plan` (`--features unix`)
+- `examples/not-quite-cargo-cargo/` -- compile `rust-lang/cargo` via `--build-plan` (`--features all-static`), then use the built cargo to rebuild cargo (one-round quine)
 
 ## build
 
