@@ -27,6 +27,7 @@ it takes a cargo `--build-plan` (or, for cargo 1.93+, a `--unit-graph`), `patch`
 - `examples/fd-no-features/` -- compile fd with `--no-default-features` (minimal, no native build deps)
 - `examples/fd-musl/` -- compile fd statically against musl (alpine target, no glibc loader on the runner)
 - `examples/eza-build-plan/` -- compile eza via `--build-plan` (default features)
+- `examples/coreutils-build-plan/` -- compile uutils/coreutils multicall binary via `--build-plan` (`--features unix`)
 
 ## build
 

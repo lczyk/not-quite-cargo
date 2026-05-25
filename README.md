@@ -28,3 +28,4 @@ end-to-end demos live under [`go/examples/`](go/examples/) -- each one builds a 
 - [sudo-rs](https://github.com/trifectatechfoundation/sudo-rs)
 - [fd](https://github.com/sharkdp/fd)
 - [eza](https://github.com/eza-community/eza)
+- [uutils/coreutils](https://github.com/uutils/coreutils)
