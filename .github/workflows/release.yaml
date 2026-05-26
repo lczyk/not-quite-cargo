@@ -1,0 +1,132 @@
+name: release
+run-name: Release ${{ github.ref_name }}
+
+# Tag-triggered. On push of a semver tag (v0.8.1, v1.0.0, ...): verify
+# tag matches VERSION, cross-compile + UPX-pack linux artefacts (darwin
+# stays unpacked -- UPX has no modern macho support), then sign + attest
+# + publish to a GitHub release. Each tag gets its own persistent
+# release object (not rolling).
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+  workflow_dispatch:
+
+jobs:
+  guard:
+    name: guard tag vs VERSION
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Parse VERSION and verify tag
+        id: parse
+        run: |
+          set -e
+          # VERSION file holds `#` comment lines + the semver string;
+          # strip comments + whitespace.
+          ver=$(grep -v '^[[:space:]]*#' VERSION | tr -d '[:space:]')
+          echo "VERSION file: $ver"
+          echo "ref_name:     ${GITHUB_REF_NAME}"
+          if [ "v${ver}" != "${GITHUB_REF_NAME}" ]; then
+            echo "tag/VERSION mismatch: v${ver} vs ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: guard
+    uses: ./.github/workflows/build-binaries.yaml
+
+  publish:
+    needs: [guard, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write       # softprops/action-gh-release
+      id-token: write       # cosign keyless OIDC + SLSA attestation
+      attestations: write   # actions/attest-build-provenance
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Download built binaries
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          path: dl
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Stage release assets
+        run: |
+          set -e
+          mkdir -p release-out
+          mv dl/not-quite-cargo-* release-out/
+          chmod +x release-out/not-quite-cargo-*
+          ls -lh release-out/
+
+      - name: SHA256 sidecars + SHA256SUMS aggregate
+        working-directory: release-out
+        run: |
+          set -e
+          : > SHA256SUMS
+          for f in not-quite-cargo-*; do
+            sha256sum -b "$f" | tee "$f.sha256" >> SHA256SUMS
+          done
+          cat SHA256SUMS
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Cosign keyless sign (post-UPX)
+        working-directory: release-out
+        run: |
+          set -e
+          for f in not-quite-cargo-*; do
+            case "$f" in *.sha256|SHA256SUMS) continue ;; esac
+            cosign sign-blob --yes \
+              --bundle "$f.cosign.bundle" \
+              "$f"
+          done
+
+      - name: SLSA build provenance (post-UPX)
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v3
+        with:
+          subject-path: |
+            release-out/not-quite-cargo-linux-amd64
+            release-out/not-quite-cargo-linux-arm64
+            release-out/not-quite-cargo-darwin-amd64
+            release-out/not-quite-cargo-darwin-arm64
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: release-out/*
+          make_latest: true
+          fail_on_unmatched_files: true
+          body: |
+            not-quite-cargo ${{ github.ref_name }}.
+
+            **binaries** -- statically-linked `not-quite-cargo` for
+            linux + darwin (amd64 / arm64). linux binaries are
+            UPX-packed; darwin binaries are unpacked (modern UPX has
+            no macho support).
+
+            ```
+            curl -fsSL https://github.com/lczyk/not-quite-cargo/releases/download/${{ github.ref_name }}/not-quite-cargo-linux-amd64 -o not-quite-cargo
+            chmod +x not-quite-cargo
+            ```
+
+            **integrity + provenance** -- each binary ships with:
+
+            - `.sha256` sidecar (and aggregate `SHA256SUMS`)
+            - `.cosign.bundle` -- cosign keyless OIDC signature
+            - SLSA build provenance attestation (verify with
+              `gh attestation verify <file> --repo lczyk/not-quite-cargo`)

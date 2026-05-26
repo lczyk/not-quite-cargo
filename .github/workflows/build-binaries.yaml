@@ -1,0 +1,89 @@
+name: build-binaries
+
+# Reusable. Cross-compiles `not-quite-cargo` for linux+darwin
+# (amd64/arm64 each). UPX-packs linux artefacts only -- modern UPX
+# does not support macho binaries. Uploads each packed binary as a
+# per-target artefact so downstream jobs can sign + publish.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            upx: true
+          - goos: linux
+            goarch: arm64
+            upx: true
+          - goos: darwin
+            goarch: amd64
+            upx: false
+          - goos: darwin
+            goarch: arm64
+            upx: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v6
+        with:
+          go-version: '1.25'
+
+      - name: Install UPX
+        if: matrix.upx
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends upx-ucl
+
+      - name: Generate version.go
+        working-directory: go
+        run: make generate-version
+
+      - name: Cross-compile
+        # version + commit are baked in by `make generate-version`
+        # (writes internal/version/version.go from VERSION + git state);
+        # no -X ldflags needed.
+        working-directory: go
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          set -e
+          mkdir -p ../release-out
+          out="../release-out/not-quite-cargo-${GOOS}-${GOARCH}"
+          go build \
+            -trimpath \
+            -ldflags="-s -w" \
+            -o "$out" \
+            ./cmd/not-quite-cargo
+          echo "built $out ($(du -h "$out" | cut -f1))"
+
+      - name: UPX pack
+        if: matrix.upx
+        run: |
+          set -e
+          out="release-out/not-quite-cargo-${{ matrix.goos }}-${{ matrix.goarch }}"
+          upx --best --lzma "$out"
+          echo "packed $out ($(du -h "$out" | cut -f1))"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: release-out/not-quite-cargo-${{ matrix.goos }}-${{ matrix.goarch }}
+          if-no-files-found: error
+          retention-days: 1
