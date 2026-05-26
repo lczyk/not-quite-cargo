@@ -95,6 +95,25 @@ func TestTranslate_DropsLTOAndPluginFlags(t *testing.T) {
 	}
 }
 
+func TestTranslate_DropsMArch(t *testing.T) {
+	// rustc emits -m64 on x86_64 (and -m32 on i686) via the cc-driver
+	// invocation; wild rejects -m 64 with "is not yet supported", so
+	// the driver must strip both.
+	got, err := Translate([]string{
+		"foo.o",
+		"-m64",
+		"-m32",
+		"-pie",
+	}, &Config{Triple: "x86_64-linux-gnu"})
+	assert.NoError(t, err)
+
+	for _, banned := range []string{"-m64", "-m32"} {
+		for _, a := range got {
+			assert.That(t, a != banned, "expected %q to be stripped, found in output", banned)
+		}
+	}
+}
+
 func TestTranslate_UnsupportedArch(t *testing.T) {
 	_, err := Translate([]string{"foo.o"}, &Config{Triple: "riscv64-linux-gnu"})
 	assert.That(t, err != nil, "expected error for unsupported triple")

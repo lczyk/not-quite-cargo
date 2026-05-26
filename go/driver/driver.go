@@ -104,6 +104,9 @@ func (c *Config) fillDefaults() error {
 // -plugin* / -fuse-ld=* / -flto* relate to LTO and linker-plugin
 // loading; the rock builds wild without the `plugins` feature, so
 // these arguments would be unrecognised. Stripped defensively.
+//
+// -m32 / -m64 are gcc codegen flags rustc passes on x86; wild infers
+// ELF class from input objects and rejects -m 64 outright.
 var dropExact = map[string]bool{
 	"-nodefaultlibs": true,
 	"-nostartfiles":  true,
@@ -114,6 +117,8 @@ var dropExact = map[string]bool{
 	"-fPIE":          true,
 	"-fpie":          true,
 	"-plugin":        true,
+	"-m32":           true,
+	"-m64":           true,
 }
 
 func shouldDrop(arg string) bool {
