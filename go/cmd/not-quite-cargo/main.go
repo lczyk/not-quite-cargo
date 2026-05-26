@@ -20,10 +20,10 @@ import (
 type Options struct {
 	Version func() `short:"v" long:"version" description:"Show version and exit"`
 
-	Patch PatchCommand  `command:"patch" description:"Rewrite paths in a Cargo build plan into placeholders"`
-	Run   RunCommand    `command:"run"   description:"Execute a (patched) Cargo build plan"`
-	Build BuildCommand  `command:"build" description:"[EXPERIMENTAL] Build a runnable plan from a cargo --unit-graph"`
-	Drive DriveCommand  `command:"drive" description:"Act as a cc-driver shim around wild: translate gcc-style link args into raw ld-style and forward to wild"`
+	Patch PatchCommand `command:"patch" description:"Rewrite paths in a Cargo build plan into placeholders"`
+	Run   RunCommand   `command:"run"   description:"Execute a (patched) Cargo build plan"`
+	Build BuildCommand `command:"build" description:"[EXPERIMENTAL] Build a runnable plan from a cargo --unit-graph"`
+	Drive DriveCommand `command:"drive" description:"Act as a cc-driver shim around wild: translate gcc-style link args into raw ld-style and forward to wild"`
 }
 
 type planArg struct {
