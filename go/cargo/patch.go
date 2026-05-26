@@ -10,17 +10,34 @@ import (
 // runtime injects fresh values from Config.
 var strippedEnvKeys = []string{"CARGO", "PROJECT_ROOT", "CARGO_HOME", "RUSTC"}
 
+// PatchOptions bundles the optional knobs PatchPlan accepts. Empty / zero
+// values are no-ops. Fields:
+//
+//   - Linker -- when non-empty, appends `-C linker=<Linker>` to every rustc
+//     invocation. Same flag exists on `run` (which wins -- rustc honours the
+//     last `-C linker=...` on the command line).
+//   - CodegenBackend -- when non-empty, appends `-Z codegen-backend=<value>`.
+//     The value can be a built-in backend name (e.g. "cranelift") or an
+//     absolute path to a backend .so. Useful when the rock ships a rustc
+//     with a non-default codegen backend and you want to make plans use it.
+//   - Panic -- when non-empty, appends `-C panic=<value>`. Workaround for
+//     cranelift-built rustc which only supports `panic=abort`; planner-side
+//     plans default to `panic=unwind` on release.
+type PatchOptions struct {
+	Linker         string
+	CodegenBackend string
+	Panic          string
+}
+
 // PatchPlan returns a new build-plan map with concrete paths replaced by
 // `{{PROJECT_ROOT}}` / `{{CARGO_HOME}}` placeholders and the `rustc` program
 // replaced with `{{RUSTC}}`. Pure transform -- no file IO, no env reads. The
 // `{{RUSTC}}` placeholder is never written to disk for any other field; rustc
 // is resolved at run time.
 //
-// If `linker` is non-empty, `-C linker=<linker>` is appended to the args of
-// every rustc invocation, baking the choice into the patched plan. The same
-// flag exists on the run command, which takes precedence (rustc honours the
-// last `-C linker=...` on the command line).
-func PatchPlan(plan map[string]any, projectRoot, cargoHome, linker string) (map[string]any, error) {
+// `opts` carries optional knobs (linker / codegen backend / panic strategy)
+// that get injected into rustc invocations when set.
+func PatchPlan(plan map[string]any, projectRoot, cargoHome string, opts PatchOptions) (map[string]any, error) {
 	if projectRoot == "" {
 		return nil, fmt.Errorf("PatchPlan: projectRoot is required")
 	}
@@ -49,7 +66,7 @@ func PatchPlan(plan map[string]any, projectRoot, cargoHome, linker string) (map[
 		// Copy + mutate to avoid touching the caller's map.
 		clone := map[string]any{}
 		maps.Copy(clone, inv)
-		patchInvocation(clone, linker)
+		patchInvocation(clone, opts)
 		patched[i] = DeepReplace(clone, reverse)
 	}
 	out["invocations"] = patched
@@ -72,9 +89,9 @@ func PatchPlan(plan map[string]any, projectRoot, cargoHome, linker string) (map[
 // patchInvocation applies the structural rewrites that aren't pure string
 // replacement: swap program=rustc to a placeholder, strip injected env keys,
 // drop --diagnostic-width which pins terminal width on the patching machine,
-// and (when linker is non-empty) append `-C linker=<linker>` to the args of
-// rustc invocations.
-func patchInvocation(inv map[string]any, linker string) {
+// and (per opts) append `-C linker=...`, `-Z codegen-backend=...`, and
+// `-C panic=...` to the args of rustc invocations.
+func patchInvocation(inv map[string]any, opts PatchOptions) {
 	isRustc := false
 	if prog, ok := inv["program"].(string); ok && prog == "rustc" {
 		inv["program"] = "{{RUSTC}}"
@@ -105,8 +122,16 @@ func patchInvocation(inv map[string]any, linker string) {
 			}
 			filtered = append(filtered, a)
 		}
-		if isRustc && linker != "" {
-			filtered = append(filtered, "-C", "linker="+linker)
+		if isRustc {
+			if opts.Linker != "" {
+				filtered = append(filtered, "-C", "linker="+opts.Linker)
+			}
+			if opts.CodegenBackend != "" {
+				filtered = append(filtered, "-Z", "codegen-backend="+opts.CodegenBackend)
+			}
+			if opts.Panic != "" {
+				filtered = append(filtered, "-C", "panic="+opts.Panic)
+			}
 		}
 		inv["args"] = filtered
 	}

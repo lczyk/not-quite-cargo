@@ -36,12 +36,14 @@ type planArg struct {
 // required flags. Writes the patched plan to stdout by default, or back
 // over the input file with --inplace.
 type PatchCommand struct {
-	ProjectRoot string  `long:"project-root" required:"yes" description:"Concrete path to replace with {{PROJECT_ROOT}} in the plan"`
-	CargoHome   string  `long:"cargo-home" required:"yes" description:"Concrete path to replace with {{CARGO_HOME}} in the plan"`
-	InPlace     bool    `long:"inplace" description:"Write the patched plan back over the input file (atomic) instead of stdout"`
-	Profile     string  `long:"profile" description:"Rewrite plan for target profile: 'release' or 'debug'"`
-	Linker      string  `long:"linker" description:"Bake '-C linker=<path>' into every rustc invocation in the patched plan. Same flag exists on 'run' for ad-hoc overrides (last value wins)."`
-	Args        planArg `positional-args:"yes" required:"yes"`
+	ProjectRoot    string  `long:"project-root" required:"yes" description:"Concrete path to replace with {{PROJECT_ROOT}} in the plan"`
+	CargoHome      string  `long:"cargo-home" required:"yes" description:"Concrete path to replace with {{CARGO_HOME}} in the plan"`
+	InPlace        bool    `long:"inplace" description:"Write the patched plan back over the input file (atomic) instead of stdout"`
+	Profile        string  `long:"profile" description:"Rewrite plan for target profile: 'release' or 'debug'"`
+	Linker         string  `long:"linker" description:"Bake '-C linker=<path>' into every rustc invocation in the patched plan. Same flag exists on 'run' for ad-hoc overrides (last value wins)."`
+	CodegenBackend string  `long:"codegen-backend" description:"Bake '-Z codegen-backend=<value>' into every rustc invocation. Value is a built-in backend name (e.g. 'cranelift') or an absolute path to a backend .so."`
+	Panic          string  `long:"panic" description:"Bake '-C panic=<value>' into every rustc invocation. Use 'abort' to override the planner-side default of 'unwind' (cranelift-only rustc needs this)."`
+	Args           planArg `positional-args:"yes" required:"yes"`
 }
 
 type RunCommand struct {
@@ -86,7 +88,11 @@ func (c *PatchCommand) Execute(_ []string) error {
 	if err != nil {
 		return err
 	}
-	patched, err := cargo.PatchPlan(plan, c.ProjectRoot, c.CargoHome, c.Linker)
+	patched, err := cargo.PatchPlan(plan, c.ProjectRoot, c.CargoHome, cargo.PatchOptions{
+		Linker:         c.Linker,
+		CodegenBackend: c.CodegenBackend,
+		Panic:          c.Panic,
+	})
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ func patchFile(t *testing.T, path, projectRoot, cargoHome string) []byte {
 	t.Helper()
 	plan, err := loadPlanJSON(path)
 	assert.NoError(t, err)
-	out, err := PatchPlan(plan, projectRoot, cargoHome, "")
+	out, err := PatchPlan(plan, projectRoot, cargoHome, PatchOptions{})
 	assert.NoError(t, err)
 	body, err := json.MarshalIndent(out, "", "    ")
 	assert.NoError(t, err)
@@ -86,7 +86,7 @@ func TestPatch_DiagnosticWidthTwoArg(t *testing.T) {
 			},
 		},
 	}
-	out, err := PatchPlan(plan, "/proj", "/cargo", "")
+	out, err := PatchPlan(plan, "/proj", "/cargo", PatchOptions{})
 	assert.NoError(t, err)
 	args := out["invocations"].([]any)[0].(map[string]any)["args"].([]any)
 	want := []any{"--edition=2021", "--crate-name", "x", "--out-dir", "/tmp/out"}
@@ -112,7 +112,7 @@ func TestPatch_LinkerInjection(t *testing.T) {
 			},
 		},
 	}
-	out, err := PatchPlan(plan, "/proj", "/cargo", "/usr/bin/wild")
+	out, err := PatchPlan(plan, "/proj", "/cargo", PatchOptions{Linker: "/usr/bin/wild"})
 	assert.NoError(t, err)
 	invs := out["invocations"].([]any)
 	rustcArgs := invs[0].(map[string]any)["args"].([]any)
@@ -123,11 +123,38 @@ func TestPatch_LinkerInjection(t *testing.T) {
 	assert.EqualCmpAny(t, otherArgs, wantOther, func(a, b any) bool { return reflect.DeepEqual(a, b) })
 }
 
+func TestPatch_CodegenBackendAndPanicInjection(t *testing.T) {
+	plan := map[string]any{
+		"invocations": []any{
+			map[string]any{
+				"program": "rustc",
+				"args":    []any{"--crate-name", "x"},
+				"env":     map[string]any{},
+				"cwd":     "/proj",
+			},
+		},
+	}
+	out, err := PatchPlan(plan, "/proj", "/cargo", PatchOptions{
+		Linker:         "/usr/bin/wild",
+		CodegenBackend: "cranelift",
+		Panic:          "abort",
+	})
+	assert.NoError(t, err)
+	args := out["invocations"].([]any)[0].(map[string]any)["args"].([]any)
+	want := []any{
+		"--crate-name", "x",
+		"-C", "linker=/usr/bin/wild",
+		"-Z", "codegen-backend=cranelift",
+		"-C", "panic=abort",
+	}
+	assert.EqualCmpAny(t, args, want, func(a, b any) bool { return reflect.DeepEqual(a, b) })
+}
+
 func TestPatch_EmptyArgsError(t *testing.T) {
 	plan := map[string]any{"invocations": []any{}}
-	_, err := PatchPlan(plan, "", "/cargo", "")
+	_, err := PatchPlan(plan, "", "/cargo", PatchOptions{})
 	assert.That(t, err != nil, "expected error when projectRoot is empty")
-	_, err = PatchPlan(plan, "/proj", "", "")
+	_, err = PatchPlan(plan, "/proj", "", PatchOptions{})
 	assert.That(t, err != nil, "expected error when cargoHome is empty")
 }
 
