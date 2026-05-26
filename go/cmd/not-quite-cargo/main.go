@@ -6,21 +6,24 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	flags "github.com/jessevdk/go-flags"
 	ver "github.com/lczyk/version/go"
 
 	"github.com/lczyk/not-quite-cargo/go/cargo"
 	"github.com/lczyk/not-quite-cargo/go/cargo/unitgraph"
+	"github.com/lczyk/not-quite-cargo/go/driver"
 	vinfo "github.com/lczyk/not-quite-cargo/go/internal/version"
 )
 
 type Options struct {
 	Version func() `short:"v" long:"version" description:"Show version and exit"`
 
-	Patch PatchCommand `command:"patch" description:"Rewrite paths in a Cargo build plan into placeholders"`
-	Run   RunCommand   `command:"run"   description:"Execute a (patched) Cargo build plan"`
-	Build BuildCommand `command:"build" description:"[EXPERIMENTAL] Build a runnable plan from a cargo --unit-graph"`
+	Patch PatchCommand  `command:"patch" description:"Rewrite paths in a Cargo build plan into placeholders"`
+	Run   RunCommand    `command:"run"   description:"Execute a (patched) Cargo build plan"`
+	Build BuildCommand  `command:"build" description:"[EXPERIMENTAL] Build a runnable plan from a cargo --unit-graph"`
+	Drive DriveCommand  `command:"drive" description:"Act as a cc-driver shim around wild: translate gcc-style link args into raw ld-style and forward to wild"`
 }
 
 type planArg struct {
@@ -44,6 +47,38 @@ type PatchCommand struct {
 type RunCommand struct {
 	Linker string  `long:"linker" description:"Path to a linker binary to inject as '-C linker=<path>' on every rustc invocation. Useful in environments where rustc's default linker driver (cc) is absent."`
 	Args   planArg `positional-args:"yes" required:"yes"`
+}
+
+// DriveCommand acts as a cc-driver shim around an ld-style linker.
+// rustc invokes it as the linker (typically via /usr/bin/cc symlinked
+// to the not-quite-cargo binary, or via -C linker=not-quite-cargo
+// with the `drive` subcommand prepended). The command translates the
+// gcc-style link args it received into raw ld-style and exec's the
+// configured linker (wild, mold, lld, plain ld -- anything ld-flavoured).
+//
+// Every knob has both a CLI flag (here) and a matching NQC_DRIVER_*
+// env var (in driver.Config.fillDefaults). The argv[0]==cc shim mode
+// is invoked by rustc and owns no command line of its own -- env
+// vars are the only configuration channel there. Flag > env > default.
+type DriveCommand struct {
+	Linker    string `long:"linker"      description:"Path to the ld-style linker to forward translated args to (default /usr/bin/ld, env NQC_DRIVER_LINKER)"`
+	Triple    string `long:"triple"      description:"Multiarch triple, e.g. aarch64-linux-gnu (default: auto-detect from runtime, env NQC_DRIVER_TRIPLE)"`
+	Interp    string `long:"interp"      description:"Path baked into PT_INTERP, e.g. /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 (default: auto-detect from triple, env NQC_DRIVER_INTERP)"`
+	LibDir    string `long:"lib-dir"     description:"libc / crt directory used for -L and crt object paths (default /usr/lib/<triple>, env NQC_DRIVER_LIB_DIR)"`
+	GccLibDir string `long:"gcc-lib-dir" description:"gcc runtime directory used for crtbegin/end + libgcc_s (default /usr/lib/gcc/<triple>/14, env NQC_DRIVER_GCC_LIB_DIR)"`
+	Args      struct {
+		LinkerArgs []string `positional-arg-name:"linker-args" description:"Linker arguments as rustc / cc-driver would invoke"`
+	} `positional-args:"yes"`
+}
+
+func (c *DriveCommand) Execute(_ []string) error {
+	return driver.Drive(c.Args.LinkerArgs, &driver.Config{
+		LinkerPath: c.Linker,
+		Triple:     c.Triple,
+		Interp:     c.Interp,
+		LibDir:     c.LibDir,
+		GccLibDir:  c.GccLibDir,
+	})
 }
 
 func (c *PatchCommand) Execute(_ []string) error {
@@ -170,6 +205,20 @@ func logConfig(cfg *cargo.Config) {
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime)
+
+	// When invoked as `cc` (typically via a /usr/bin/cc symlink to
+	// this binary), shortcut straight to the driver so rustc's
+	// default cc-driver linker invocation works without any extra
+	// shell shim. All remaining argv goes through driver.Drive.
+	if filepath.Base(os.Args[0]) == "cc" {
+		if err := driver.Drive(os.Args[1:], &driver.Config{}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		// driver.Drive exec's wild on success, so we should never reach
+		// here -- if we do, treat it as a hard error.
+		os.Exit(1)
+	}
 
 	opts := Options{
 		Version: func() {
