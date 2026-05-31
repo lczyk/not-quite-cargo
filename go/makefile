@@ -16,7 +16,7 @@ generate-version:  ## Generate internal/version/version.go from VERSION + git st
 .PHONY: build
 build: ./bin/not-quite-cargo  ## Build the binary (upx-compressed if available)
 
-./bin/not-quite-cargo: $(SRCS) Makefile go.mod go.sum generate-version
+./bin/not-quite-cargo: $(SRCS) makefile go.mod go.sum generate-version
 	mkdir -p ./bin
 	go build -ldflags="-s -w" -o $@ ./cmd/not-quite-cargo
 	@if command -v upx >/dev/null 2>&1; then \
