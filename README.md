@@ -1,5 +1,7 @@
 # not-quite-cargo
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 have you ever needed to compile a big rust project without cargo? no?
 how about trying to compile a project with cargo on one machine, rustc
 it is trying to use on another one, talking over ssh (with bash shims
