@@ -1,0 +1,27 @@
+name: lint_and_test_rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@1.85.0
+      with:
+        components: clippy, rustfmt
+
+    - name: Lint
+      run: make lint
+
+    - name: Test
+      run: make test-unit

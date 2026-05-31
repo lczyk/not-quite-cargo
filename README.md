@@ -21,7 +21,9 @@ tested with cargo `v1.84.1` but ought to work in any version with `--build-plan`
 
 for cargo `>= 1.93.0` the go side carries an **experimental** `build` subcommand that derives a build plan from cargo's `--unit-graph` output (the closest surviving replacement, still nightly-gated). correctness is best-effort.
 
-end-to-end demos live under [`go/examples/`](go/examples/) -- each one builds a real crate inside an ephemeral container with cargo deleted from the run stage, to prove the plan executor can stand on its own. docker and podman both work.
+there's also a native **rust port** under [`rust/`](rust/) -- `nqc` for rust users who'd rather not keep a go toolchain around. it covers the stable `--build-plan` path (`patch` + `run`); the experimental `--unit-graph` `build` subcommand is go-only for now. see [`rust/readme.md`](rust/readme.md).
+
+end-to-end demos live under [`go/examples/`](go/examples/) and [`rust/examples/`](rust/examples/) -- each one builds a real crate inside an ephemeral container with cargo deleted from the run stage, to prove the plan executor can stand on its own. docker and podman both work.
 
 ## successfully compiled
 
