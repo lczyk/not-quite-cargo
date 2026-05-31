@@ -2,6 +2,7 @@ package driver
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/lczyk/assert"
@@ -92,6 +93,41 @@ func TestTranslate_DropsLTOAndPluginFlags(t *testing.T) {
 		for _, a := range got {
 			assert.That(t, a != banned, "expected %q to be stripped, found in output", banned)
 		}
+	}
+}
+
+func TestTranslate_DropsBPrefix(t *testing.T) {
+	// COVER: the from-source cranelift rustc defaults to its bundled
+	// self-contained lld on x86_64 and emits `-fuse-ld=lld` plus a gcc
+	// prefix flag `-B<sysroot>/.../bin/gcc-ld`. The raw linker rejects
+	// the -B; it must be stripped. The linker's own -Bstatic/-Bdynamic
+	// arrive wrapped in -Wl, and must survive (expanded).
+	got, err := Translate([]string{
+		"foo.o",
+		"-fuse-ld=lld",
+		"-B/usr/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld",
+		"-Wl,-Bstatic",
+		"bar.rlib",
+		"-Wl,-Bdynamic",
+		"-pie",
+	}, &Config{Triple: "x86_64-linux-gnu"})
+	assert.NoError(t, err)
+
+	// top-level -B prefix flag (and -fuse-ld) gone; wrapped -Bstatic /
+	// -Bdynamic survive after -Wl, expansion.
+	for _, want := range []string{"-Bstatic", "-Bdynamic", "foo.o", "bar.rlib"} {
+		found := false
+		for _, a := range got {
+			if a == want {
+				found = true
+				break
+			}
+		}
+		assert.That(t, found, "expected %q to survive translation", want)
+	}
+	for _, a := range got {
+		assert.That(t, !strings.HasPrefix(a, "-B/"), "expected gcc -B prefix flag stripped, found %q", a)
+		assert.That(t, a != "-fuse-ld=lld", "expected -fuse-ld=lld stripped, found in output")
 	}
 }
 

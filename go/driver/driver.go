@@ -107,6 +107,16 @@ func (c *Config) fillDefaults() error {
 //
 // -m32 / -m64 are gcc codegen flags rustc passes on x86; wild infers
 // ELF class from input objects and rejects -m 64 outright.
+//
+// -B<dir> is gcc's "prefix" flag telling the driver where to find
+// sub-programs / startfiles. rustc points it at its bundled
+// self-contained lld dir (<sysroot>/.../bin/gcc-ld) on targets that
+// default to lld (x86_64-unknown-linux-gnu does, aarch64 doesn't).
+// A raw linker has no such concept and rejects it. Only the attached
+// form (-B<dir>) reaches us at the top level -- the linker's own
+// -Bstatic / -Bdynamic arrive wrapped in -Wl, and are expanded after
+// the shouldDrop check, so a bare top-level -B is always gcc's prefix
+// flag. Stripped by prefix.
 var dropExact = map[string]bool{
 	"-nodefaultlibs": true,
 	"-nostartfiles":  true,
@@ -131,6 +141,8 @@ func shouldDrop(arg string) bool {
 	case strings.HasPrefix(arg, "-fuse-ld="):
 		return true
 	case strings.HasPrefix(arg, "-flto"):
+		return true
+	case strings.HasPrefix(arg, "-B"):
 		return true
 	}
 	return false
