@@ -4786,7 +4786,7 @@
     },
     {
       "package_name": "etcetera",
-      "package_version": "0.8.5",
+      "package_version": "0.8.6",
       "target_kind": [
         "lib"
       ],
@@ -4849,7 +4849,7 @@
         "CARGO_PKG_README": "README.md",
         "CARGO_PKG_REPOSITORY": "https://github.com/lunacookies/etcetera",
         "CARGO_PKG_RUST_VERSION": "",
-        "CARGO_PKG_VERSION": "0.8.5",
+        "CARGO_PKG_VERSION": "0.8.6",
         "CARGO_PKG_VERSION_MAJOR": "0",
         "CARGO_PKG_VERSION_MINOR": "8",
         "CARGO_PKG_VERSION_PATCH": "0",
@@ -5295,7 +5295,7 @@
     },
     {
       "package_name": "regex-syntax",
-      "package_version": "0.8.5",
+      "package_version": "0.8.6",
       "target_kind": [
         "lib"
       ],
@@ -5371,7 +5371,7 @@
         "CARGO_PKG_README": "README.md",
         "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/regex/tree/master/regex-syntax",
         "CARGO_PKG_RUST_VERSION": "1.65",
-        "CARGO_PKG_VERSION": "0.8.5",
+        "CARGO_PKG_VERSION": "0.8.6",
         "CARGO_PKG_VERSION_MAJOR": "0",
         "CARGO_PKG_VERSION_MINOR": "8",
         "CARGO_PKG_VERSION_PATCH": "4",
@@ -5736,7 +5736,7 @@
     },
     {
       "package_name": "crossbeam-deque",
-      "package_version": "0.8.5",
+      "package_version": "0.8.6",
       "target_kind": [
         "lib"
       ],
@@ -5803,7 +5803,7 @@
         "CARGO_PKG_README": "README.md",
         "CARGO_PKG_REPOSITORY": "https://github.com/crossbeam-rs/crossbeam",
         "CARGO_PKG_RUST_VERSION": "1.61",
-        "CARGO_PKG_VERSION": "0.8.5",
+        "CARGO_PKG_VERSION": "0.8.6",
         "CARGO_PKG_VERSION_MAJOR": "0",
         "CARGO_PKG_VERSION_MINOR": "8",
         "CARGO_PKG_VERSION_PATCH": "5",

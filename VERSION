@@ -3,4 +3,4 @@
 # The py/ side keeps its own version in pyproject.toml and cargo.py
 # which should match this.
 # tags: go, rust, python 
-0.8.5
+0.8.6
