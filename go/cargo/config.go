@@ -18,6 +18,12 @@ type Config struct {
 	// (typically `cc`) is absent and we want to point rustc at something
 	// else (e.g. wild) without re-recording the build plan.
 	Linker string
+	// NoLTO, when true, strips LTO-family codegen flags and forces
+	// `-C lto=off` on every rustc invocation at run time. For backends
+	// that can't LTO (cranelift), where a requested `-C lto` otherwise
+	// produces undefined-symbol link errors. Same effect as patch-time
+	// PatchOptions.NoLTO; handy for an unpatched plan.
+	NoLTO bool
 
 	Logger Logger
 }

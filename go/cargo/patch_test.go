@@ -150,6 +150,42 @@ func TestPatch_CodegenBackendAndPanicInjection(t *testing.T) {
 	assert.EqualCmpAny(t, args, want, func(a, b any) bool { return reflect.DeepEqual(a, b) })
 }
 
+func TestPatch_NoLTO(t *testing.T) {
+	// NoLTO strips every LTO-family codegen flag -- two-token (`-C lto`),
+	// single-token (`-Clto=fat`, `--codegen=lto`), linker-plugin-lto and
+	// embed-bitcode -- and appends a single `-C lto=off`. Unrelated -C
+	// flags (codegen-units, opt-level) survive.
+	plan := map[string]any{
+		"invocations": []any{
+			map[string]any{
+				"program": "rustc",
+				"args": []any{
+					"--crate-name", "x",
+					"-C", "lto",
+					"-Clto=fat",
+					"--codegen=lto",
+					"-C", "linker-plugin-lto",
+					"-C", "embed-bitcode=no",
+					"-C", "codegen-units=1",
+					"-C", "opt-level=3",
+				},
+				"env": map[string]any{},
+				"cwd": "/proj",
+			},
+		},
+	}
+	out, err := PatchPlan(plan, "/proj", "/cargo", PatchOptions{NoLTO: true})
+	assert.NoError(t, err)
+	args := out["invocations"].([]any)[0].(map[string]any)["args"].([]any)
+	want := []any{
+		"--crate-name", "x",
+		"-C", "codegen-units=1",
+		"-C", "opt-level=3",
+		"-C", "lto=off",
+	}
+	assert.EqualCmpAny(t, args, want, func(a, b any) bool { return reflect.DeepEqual(a, b) })
+}
+
 func TestPatch_EmptyArgsError(t *testing.T) {
 	plan := map[string]any{"invocations": []any{}}
 	_, err := PatchPlan(plan, "", "/cargo", PatchOptions{})

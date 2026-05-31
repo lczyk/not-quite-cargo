@@ -43,11 +43,13 @@ type PatchCommand struct {
 	Linker         string  `long:"linker" description:"Bake '-C linker=<path>' into every rustc invocation in the patched plan. Same flag exists on 'run' for ad-hoc overrides (last value wins)."`
 	CodegenBackend string  `long:"codegen-backend" description:"Bake '-Z codegen-backend=<value>' into every rustc invocation. Value is a built-in backend name (e.g. 'cranelift') or an absolute path to a backend .so."`
 	Panic          string  `long:"panic" description:"Bake '-C panic=<value>' into every rustc invocation. Use 'abort' to override the planner-side default of 'unwind' (cranelift-only rustc needs this)."`
+	NoLTO          bool    `long:"no-lto" description:"Strip LTO-family codegen flags and bake '-C lto=off' into every rustc invocation. Needed for backends that can't LTO (cranelift), where a requested '-C lto' makes rustc omit upstream rlibs and the link fails with undefined symbols."`
 	Args           planArg `positional-args:"yes" required:"yes"`
 }
 
 type RunCommand struct {
 	Linker string  `long:"linker" description:"Path to a linker binary to inject as '-C linker=<path>' on every rustc invocation. Useful in environments where rustc's default linker driver (cc) is absent."`
+	NoLTO  bool    `long:"no-lto" description:"Strip LTO-family codegen flags and force '-C lto=off' on every rustc invocation. Same as the patch flag; for backends that can't LTO (cranelift)."`
 	Args   planArg `positional-args:"yes" required:"yes"`
 }
 
@@ -92,6 +94,7 @@ func (c *PatchCommand) Execute(_ []string) error {
 		Linker:         c.Linker,
 		CodegenBackend: c.CodegenBackend,
 		Panic:          c.Panic,
+		NoLTO:          c.NoLTO,
 	})
 	if err != nil {
 		return err
@@ -125,6 +128,7 @@ func (c *RunCommand) Execute(_ []string) error {
 		return err
 	}
 	cfg.Linker = c.Linker
+	cfg.NoLTO = c.NoLTO
 	logConfig(cfg)
 	return cargo.Run(c.Args.BuildPlan, cfg)
 }
@@ -206,6 +210,9 @@ func logConfig(cfg *cargo.Config) {
 	cfg.Logger.Infof("RUSTC:        %s", cfg.RustcPath)
 	if cfg.Linker != "" {
 		cfg.Logger.Infof("LINKER:       %s (injected as -C linker=...)", cfg.Linker)
+	}
+	if cfg.NoLTO {
+		cfg.Logger.Infof("NO-LTO:       stripping LTO flags, forcing -C lto=off")
 	}
 }
 

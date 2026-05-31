@@ -23,10 +23,62 @@ var strippedEnvKeys = []string{"CARGO", "PROJECT_ROOT", "CARGO_HOME", "RUSTC"}
 //   - Panic -- when non-empty, appends `-C panic=<value>`. Workaround for
 //     cranelift-built rustc which only supports `panic=abort`; planner-side
 //     plans default to `panic=unwind` on release.
+//   - NoLTO -- when true, strips any LTO-family codegen flags and appends
+//     `-C lto=off`. Workaround for backends that can't do LTO (cranelift):
+//     left in place, rustc omits upstream rlibs from the final link
+//     expecting LTO to inline them, and the link fails with undefined
+//     symbols (std / generic instantiations). Same knob exists on `run`.
 type PatchOptions struct {
 	Linker         string
 	CodegenBackend string
 	Panic          string
+	NoLTO          bool
+}
+
+// ltoCodegenValue reports whether v is the value half of an LTO-family
+// `-C <v>` codegen flag: lto, linker-plugin-lto or embed-bitcode (bare or
+// `=...`).
+func ltoCodegenValue(v string) bool {
+	for _, k := range []string{"lto", "linker-plugin-lto", "embed-bitcode"} {
+		if v == k || strings.HasPrefix(v, k+"=") {
+			return true
+		}
+	}
+	return false
+}
+
+// stripLTO removes LTO-family codegen flags -- both the two-token `-C lto`
+// / `--codegen lto` form and the single-token `-Clto=...` / `--codegen=lto`
+// form -- and appends `-C lto=off`.
+//
+// cranelift can't LTO. Left in place, a requested `-C lto` makes rustc omit
+// the upstream rlibs from the final link (it expects LTO to pull their code
+// in as bitcode), so the link dies with undefined symbols. embed-bitcode is
+// stripped too: `-C embed-bitcode=no` is rejected alongside a live `-C lto`,
+// and `lto=off` leaves embed-bitcode off by default anyway.
+func stripLTO(args []string) []string {
+	out := make([]string, 0, len(args)+2)
+	skipNext := false
+	for i, a := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		// two-token: "-C"/"--codegen" followed by an LTO-family value.
+		if (a == "-C" || a == "--codegen") && i+1 < len(args) && ltoCodegenValue(args[i+1]) {
+			skipNext = true
+			continue
+		}
+		// single-token: "-Clto", "-Clto=fat", "--codegen=lto", ...
+		if rest, ok := strings.CutPrefix(a, "-C"); ok && rest != "" && ltoCodegenValue(rest) {
+			continue
+		}
+		if rest, ok := strings.CutPrefix(a, "--codegen="); ok && ltoCodegenValue(rest) {
+			continue
+		}
+		out = append(out, a)
+	}
+	return append(out, "-C", "lto=off")
 }
 
 // PatchPlan returns a new build-plan map with concrete paths replaced by
@@ -131,6 +183,24 @@ func patchInvocation(inv map[string]any, opts PatchOptions) {
 			}
 			if opts.Panic != "" {
 				filtered = append(filtered, "-C", "panic="+opts.Panic)
+			}
+			if opts.NoLTO {
+				strs := make([]string, 0, len(filtered))
+				allStrings := true
+				for _, a := range filtered {
+					s, ok := a.(string)
+					if !ok {
+						allStrings = false
+						break
+					}
+					strs = append(strs, s)
+				}
+				if allStrings {
+					filtered = filtered[:0]
+					for _, s := range stripLTO(strs) {
+						filtered = append(filtered, s)
+					}
+				}
 			}
 		}
 		inv["args"] = filtered

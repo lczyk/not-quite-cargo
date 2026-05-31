@@ -79,6 +79,13 @@ func Run(path string, cfg *Config) error {
 			args = append(args, "-C", "linker="+cfg.Linker)
 		}
 
+		// Strip LTO-family flags and force `-C lto=off` for backends that
+		// can't LTO (cranelift). Same as patch-time PatchOptions.NoLTO, but
+		// applied here so an unpatched plan can be run safely too.
+		if cfg.NoLTO && program == cfg.RustcPath {
+			args = stripLTO(args)
+		}
+
 		// Apply directives from any build script for the same package that
 		// has already run.
 		invEnv := map[string]string{}
