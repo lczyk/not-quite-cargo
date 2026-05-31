@@ -27,8 +27,8 @@ end-to-end demos live under [`go/examples/`](go/examples/) and [`rust/examples/`
 
 ## successfully compiled
 
-- [sudo-rs](https://github.com/trifectatechfoundation/sudo-rs)
-- [fd](https://github.com/sharkdp/fd)
-- [eza](https://github.com/eza-community/eza)
-- [uutils/coreutils](https://github.com/uutils/coreutils)
-- [rust-lang/cargo](https://github.com/rust-lang/cargo) (the quine: cargo builds cargo)
+- [sudo-rs](https://github.com/trifectatechfoundation/sudo-rs) -- [go/build-plan](go/examples/sudo-build-plan), [go/unit-graph](go/examples/sudo-unit-graph), [rust/build-plan](rust/examples/sudo-build-plan)
+- [fd](https://github.com/sharkdp/fd) -- [jemalloc](go/examples/fd-jemalloc), [mold](go/examples/fd-mold), [musl](go/examples/fd-musl), [no-features](go/examples/fd-no-features), [wild](go/examples/fd-wild)
+- [eza](https://github.com/eza-community/eza) -- [go/build-plan](go/examples/eza-build-plan)
+- [uutils/coreutils](https://github.com/uutils/coreutils) -- [go/build-plan](go/examples/coreutils-build-plan)
+- [rust-lang/cargo](https://github.com/rust-lang/cargo) (the quine: cargo builds cargo) -- [go/build-plan](go/examples/not-quite-cargo-cargo), [rust/quine](rust/examples/quine)
